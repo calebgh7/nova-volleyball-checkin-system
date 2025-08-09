@@ -126,7 +126,7 @@ export const verifyAdmin = (req: express.Request, res: express.Response, next: e
 // Get current user info
 router.get('/me', verifyToken, async (req: express.Request, res) => {
   try {
-    const user = (req as { user: JWTPayload }).user;
+    const user = (req as unknown as { user: JWTPayload }).user;
     const db = dbManager.getDatabase();
     const userData = await db.get(
       'SELECT id, username, email, role, firstName, lastName, createdAt FROM users WHERE id = ?',
@@ -163,7 +163,7 @@ router.get('/users', verifyToken, verifyAdmin, async (req: express.Request, res)
 router.delete('/users/:id', verifyToken, verifyAdmin, async (req: express.Request, res) => {
   try {
     const { id } = req.params;
-    const user = (req as { user: JWTPayload }).user;
+    const user = (req as unknown as { user: JWTPayload }).user;
     
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });
