@@ -29,33 +29,83 @@ const defaultUsers = [
   }
 ];
 
-// Function to get users (with persistence attempt)
+// Global state that persists during function instance lifetime
+let globalUsers = null;
+let globalAthletes = null;
+let globalEvents = null;
+let globalCheckIns = null;
+
+// Function to get users (with multiple persistence attempts)
 function getUsers() {
+  // If we already have users in memory for this function instance, use them
+  if (globalUsers) {
+    console.log('Using cached users:', globalUsers.length);
+    return globalUsers;
+  }
+
+  // Try to load from file
   try {
     if (fs.existsSync('/tmp/users.json')) {
       const data = fs.readFileSync('/tmp/users.json', 'utf8');
       const parsed = JSON.parse(data);
       console.log('Loaded users from file:', parsed.length);
+      globalUsers = parsed;
       return parsed;
     }
   } catch (error) {
     console.error('Error loading users from file:', error);
   }
+
+  // Try alternative file locations
+  const alternativePaths = [
+    '/tmp/nova_users.json',
+    '/var/tmp/users.json',
+    './users.json'
+  ];
+
+  for (const path of alternativePaths) {
+    try {
+      if (fs.existsSync(path)) {
+        const data = fs.readFileSync(path, 'utf8');
+        const parsed = JSON.parse(data);
+        console.log('Loaded users from alternative path:', path, parsed.length);
+        globalUsers = parsed;
+        return parsed;
+      }
+    } catch (error) {
+      console.error('Error loading users from alternative path:', path, error);
+    }
+  }
+
   console.log('Using default users');
-  return JSON.parse(JSON.stringify(defaultUsers)); // Deep copy
+  globalUsers = JSON.parse(JSON.stringify(defaultUsers)); // Deep copy
+  return globalUsers;
 }
 
-// Function to save users to file
+// Function to save users to multiple locations
 function saveUsers(users) {
-  try {
-    const data = JSON.stringify(users, null, 2);
-    fs.writeFileSync('/tmp/users.json', data);
-    console.log('Saved users to file:', users.length);
-    return true;
-  } catch (error) {
-    console.error('Error saving users:', error);
-    return false;
+  globalUsers = users; // Update global cache
+  
+  const paths = [
+    '/tmp/users.json',
+    '/tmp/nova_users.json',
+    '/var/tmp/users.json',
+    './users.json'
+  ];
+
+  let saved = false;
+  for (const path of paths) {
+    try {
+      const data = JSON.stringify(users, null, 2);
+      fs.writeFileSync(path, data);
+      console.log('Saved users to:', path, users.length);
+      saved = true;
+    } catch (error) {
+      console.error('Error saving users to:', path, error);
+    }
   }
+  
+  return saved;
 }
 
 // Initialize users
@@ -113,27 +163,40 @@ app.get('/api/health', (req, res) => {
 
 // Debug endpoint to check current user data
 app.get('/api/debug/users', (req, res) => {
+  const currentUsers = getUsers();
   res.json({
-    users: users.map(user => {
+    users: currentUsers.map(user => {
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     }),
     fileExists: fs.existsSync('/tmp/users.json'),
     filePath: '/tmp/users.json',
-    userCount: users.length
+    userCount: currentUsers.length,
+    globalUsersCached: globalUsers !== null,
+    globalUsersCount: globalUsers ? globalUsers.length : 0
   });
 });
 
 // Reset users to default (for testing)
 app.post('/api/debug/reset-users', (req, res) => {
-  users = [...defaultUsers];
-  saveUsers(users);
+  globalUsers = JSON.parse(JSON.stringify(defaultUsers));
+  saveUsers(globalUsers);
   res.json({ 
     message: 'Users reset to default',
-    users: users.map(user => {
+    users: globalUsers.map(user => {
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     })
+  });
+});
+
+// Force save users (for testing)
+app.post('/api/debug/save-users', (req, res) => {
+  const saved = saveUsers(users);
+  res.json({ 
+    message: saved ? 'Users saved successfully' : 'Failed to save users',
+    userCount: users.length,
+    saved
   });
 });
 
@@ -160,8 +223,10 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
+  const currentUsers = getUsers();
+  
   // Find user by username
-  const user = users.find(u => u.username === username);
+  const user = currentUsers.find(u => u.username === username);
   
   if (!user) {
     return res.status(401).json({ error: 'Invalid username or password' });
@@ -183,8 +248,10 @@ app.post('/api/auth/login', (req, res) => {
 
 // Get all users (admin only)
 app.get('/api/auth/users', (req, res) => {
+  const currentUsers = getUsers();
+  
   // Return users without passwords
-  const usersWithoutPasswords = users.map(user => {
+  const usersWithoutPasswords = currentUsers.map(user => {
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
   });
@@ -202,13 +269,15 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
+  const currentUsers = getUsers();
+
   // Check if username already exists
-  if (users.find(u => u.username === username)) {
+  if (currentUsers.find(u => u.username === username)) {
     return res.status(400).json({ error: 'Username already exists' });
   }
 
   // Check if email already exists
-  if (users.find(u => u.email === email)) {
+  if (currentUsers.find(u => u.email === email)) {
     return res.status(400).json({ error: 'Email already exists' });
   }
 
@@ -224,10 +293,10 @@ app.post('/api/auth/register', (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  users.push(newUser);
+  currentUsers.push(newUser);
   
   // Save to persistent storage
-  saveUsers(users);
+  saveUsers(currentUsers);
 
   // Return user without password
   const { password: _, ...userWithoutPassword } = newUser;
@@ -247,26 +316,28 @@ app.put('/api/auth/users/:id', (req, res) => {
     return res.status(400).json({ error: 'Username, email, first name, last name, and role are required' });
   }
 
+  const currentUsers = getUsers();
+
   // Find user by ID
-  const userIndex = users.findIndex(u => u.id === id);
+  const userIndex = currentUsers.findIndex(u => u.id === id);
   
   if (userIndex === -1) {
     return res.status(404).json({ error: 'User not found' });
   }
 
   // Check if username is being changed and if it already exists
-  if (username !== users[userIndex].username && users.find(u => u.username === username)) {
+  if (username !== currentUsers[userIndex].username && currentUsers.find(u => u.username === username)) {
     return res.status(400).json({ error: 'Username already exists' });
   }
 
   // Check if email is being changed and if it already exists
-  if (email !== users[userIndex].email && users.find(u => u.email === email)) {
+  if (email !== currentUsers[userIndex].email && currentUsers.find(u => u.email === email)) {
     return res.status(400).json({ error: 'Email already exists' });
   }
 
   // Update user
-  users[userIndex] = {
-    ...users[userIndex],
+  currentUsers[userIndex] = {
+    ...currentUsers[userIndex],
     username,
     email,
     firstName,
@@ -276,10 +347,10 @@ app.put('/api/auth/users/:id', (req, res) => {
   };
 
   // Save to persistent storage
-  saveUsers(users);
+  saveUsers(currentUsers);
 
   // Return updated user without password
-  const { password: _, ...userWithoutPassword } = users[userIndex];
+  const { password: _, ...userWithoutPassword } = currentUsers[userIndex];
   
   res.json({
     message: 'User updated successfully',
@@ -291,18 +362,20 @@ app.put('/api/auth/users/:id', (req, res) => {
 app.delete('/api/auth/users/:id', (req, res) => {
   const { id } = req.params;
   
+  const currentUsers = getUsers();
+  
   // Find user by ID
-  const userIndex = users.findIndex(u => u.id === id);
+  const userIndex = currentUsers.findIndex(u => u.id === id);
   
   if (userIndex === -1) {
     return res.status(404).json({ error: 'User not found' });
   }
 
   // Remove user from array
-  users.splice(userIndex, 1);
+  currentUsers.splice(userIndex, 1);
   
   // Save to persistent storage
-  saveUsers(users);
+  saveUsers(currentUsers);
   
   res.json({ message: 'User deleted successfully' });
 });
