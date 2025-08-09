@@ -75,6 +75,29 @@ app.get('/api/athletes', (req, res) => {
   });
 });
 
+// Athletes search endpoint
+app.get('/api/athletes/search', (req, res) => {
+  const { query } = req.query;
+  res.json({ 
+    athletes: [
+      {
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        phone: '555-1234',
+        dateOfBirth: '2000-01-01',
+        emergencyContact: 'Jane Doe',
+        emergencyContactEmail: 'jane@example.com',
+        emergencyPhone: '555-5678',
+        hasValidWaiver: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ]
+  });
+});
+
 // Events endpoint (simplified)
 app.get('/api/events', (req, res) => {
   res.json({ 
@@ -129,6 +152,18 @@ app.get('/api/checkins/stats/overview', (req, res) => {
   });
 });
 
+// Legacy stats endpoint
+app.get('/api/checkins/stats', (req, res) => {
+  res.json({
+    stats: {
+      today: 1,
+      total: 1,
+      waiverValidated: 1,
+      waiverNotValidated: 0
+    }
+  });
+});
+
 // Additional endpoints for the app
 app.get('/api/events/today', (req, res) => {
   res.json({ 
@@ -149,6 +184,10 @@ app.get('/api/events/today', (req, res) => {
 });
 
 app.get('/api/events/past', (req, res) => {
+  res.json({ events: [] });
+});
+
+app.get('/api/events/disabled', (req, res) => {
   res.json({ events: [] });
 });
 
