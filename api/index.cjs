@@ -37,6 +37,7 @@ let globalUsers = null;
 let globalAthletes = null;
 let globalEvents = null;
 let globalCheckIns = null;
+let globalBackup = null;
 
 // Database functions with in-memory persistence
 async function getUsers() {
