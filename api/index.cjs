@@ -130,9 +130,21 @@ app.post('/api/auth/register', async (req, res) => {
 
     if (error) throw error;
 
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    };
+
     res.status(201).json({
       message: 'User created successfully',
-      user
+      user: transformedUser
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -150,7 +162,19 @@ app.get('/api/auth/users', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ users: users || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedUsers = (users || []).map(user => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    }));
+    
+    res.json({ users: transformedUsers });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to load users', details: error.message });
@@ -185,9 +209,21 @@ app.put('/api/auth/users/:id', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedUser = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
+    };
+
     res.json({
       message: 'User updated successfully',
-      user
+      user: transformedUser
     });
   } catch (error) {
     console.error('Error updating user:', error);
