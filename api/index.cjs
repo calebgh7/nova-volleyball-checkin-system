@@ -195,6 +195,43 @@ app.put('/api/auth/users/:id', async (req, res) => {
   }
 });
 
+// Delete user
+app.delete('/api/auth/users/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check if user exists first
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, username')
+      .eq('id', id)
+      .single();
+
+    if (checkError) {
+      if (checkError.code === 'PGRST116') { // Not found
+        return res.status(404).json({ error: 'User not found' });
+      }
+      throw checkError;
+    }
+
+    // Delete the user
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    res.json({
+      message: 'User deleted successfully',
+      deletedUser: existingUser
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user', details: error.message });
+  }
+});
+
 // Athletes endpoints
 app.get('/api/athletes', async (req, res) => {
   try {
@@ -280,6 +317,21 @@ app.delete('/api/athletes/:id', async (req, res) => {
   const { id } = req.params;
   
   try {
+    // Check if athlete exists first
+    const { data: existingAthlete, error: checkError } = await supabase
+      .from('athletes')
+      .select('id, first_name, last_name')
+      .eq('id', id)
+      .single();
+
+    if (checkError) {
+      if (checkError.code === 'PGRST116') { // Not found
+        return res.status(404).json({ error: 'Athlete not found' });
+      }
+      throw checkError;
+    }
+
+    // Delete the athlete
     const { error } = await supabase
       .from('athletes')
       .delete()
@@ -287,7 +339,10 @@ app.delete('/api/athletes/:id', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ message: 'Athlete deleted successfully' });
+    res.json({ 
+      message: 'Athlete deleted successfully',
+      deletedAthlete: existingAthlete
+    });
   } catch (error) {
     console.error('Error deleting athlete:', error);
     res.status(500).json({ error: 'Failed to delete athlete', details: error.message });
@@ -377,6 +432,21 @@ app.delete('/api/events/:id', async (req, res) => {
   const { id } = req.params;
   
   try {
+    // Check if event exists first
+    const { data: existingEvent, error: checkError } = await supabase
+      .from('events')
+      .select('id, name')
+      .eq('id', id)
+      .single();
+
+    if (checkError) {
+      if (checkError.code === 'PGRST116') { // Not found
+        return res.status(404).json({ error: 'Event not found' });
+      }
+      throw checkError;
+    }
+
+    // Delete the event
     const { error } = await supabase
       .from('events')
       .delete()
@@ -384,7 +454,10 @@ app.delete('/api/events/:id', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ message: 'Event deleted successfully' });
+    res.json({ 
+      message: 'Event deleted successfully',
+      deletedEvent: existingEvent
+    });
   } catch (error) {
     console.error('Error deleting event:', error);
     res.status(500).json({ error: 'Failed to delete event', details: error.message });
