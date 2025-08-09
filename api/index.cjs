@@ -741,19 +741,32 @@ app.get('/api/checkins/stats', async (req, res) => {
 // Additional endpoints
 app.get('/api/events/today', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Use local time instead of UTC
+    const now = new Date();
+    const localDate = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format in local timezone
+    const localTime = now.toLocaleTimeString('en-GB', { 
+      hour12: false,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+    }); // HH:MM:SS format in local timezone
     
+    // Get all events for today
     const { data: events, error } = await supabase
       .from('events')
       .select('*')
-      .eq('date', today)
+      .eq('date', localDate)
       .eq('is_active', true)
       .order('start_time', { ascending: true });
 
     if (error) throw error;
     
+    // Filter to only include events that haven't ended yet
+    const currentEvents = (events || []).filter(event => {
+      const eventEndTime = event.end_time;
+      return eventEndTime >= localTime;
+    });
+    
     // Transform the data to match frontend expectations (camelCase)
-    const transformedEvents = (events || []).map(event => ({
+    const transformedEvents = currentEvents.map(event => ({
       id: event.id,
       name: event.name,
       description: event.description,
@@ -777,18 +790,42 @@ app.get('/api/events/today', async (req, res) => {
 
 app.get('/api/events/past', async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Use local time instead of UTC
+    const now = new Date();
+    const localDate = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format in local timezone
+    const localTime = now.toLocaleTimeString('en-GB', { 
+      hour12: false,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+    }); // HH:MM:SS format in local timezone
     
+    // Get all events first, then filter by date and time
     const { data: events, error } = await supabase
       .from('events')
       .select('*')
-      .lt('date', today)
       .order('date', { ascending: false });
 
     if (error) throw error;
     
+    // Filter events that are truly in the past (date < localDate OR date = localDate AND end_time < localTime)
+    const pastEvents = (events || []).filter(event => {
+      const eventDate = event.date;
+      const eventEndTime = event.end_time;
+      
+      // If event date is before today, it's definitely past
+      if (eventDate < localDate) {
+        return true;
+      }
+      
+      // If event date is today, check if the end time has passed
+      if (eventDate === localDate && eventEndTime < localTime) {
+        return true;
+      }
+      
+      return false;
+    });
+    
     // Transform the data to match frontend expectations (camelCase)
-    const transformedEvents = (events || []).map(event => ({
+    const transformedEvents = pastEvents.map(event => ({
       id: event.id,
       name: event.name,
       description: event.description,
