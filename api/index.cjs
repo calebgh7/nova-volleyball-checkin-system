@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Supabase client
-const SUPABASE_CONFIG = require('../supabase-config');
+const SUPABASE_CONFIG = require('../supabase-config.cjs');
 
 const supabaseUrl = process.env.SUPABASE_URL || SUPABASE_CONFIG.url;
 const supabaseKey = process.env.SUPABASE_ANON_KEY || SUPABASE_CONFIG.anonKey;
