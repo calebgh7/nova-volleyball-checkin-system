@@ -1,9 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
+const { kv } = require('@vercel/kv');
 const path = require('path');
 
 const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // Default user data
 const defaultUsers = [
@@ -29,137 +33,44 @@ const defaultUsers = [
   }
 ];
 
-// Global state that persists during function instance lifetime
-let globalUsers = null;
-let globalAthletes = null;
-let globalEvents = null;
-let globalCheckIns = null;
-
-// Function to get users (with multiple persistence attempts)
-function getUsers() {
-  // If we already have users in memory for this function instance, use them
-  if (globalUsers) {
-    console.log('Using cached users:', globalUsers.length);
-    return globalUsers;
-  }
-
-  // Try to load from file with more robust error handling
-  const paths = [
-    '/tmp/users.json',
-    '/tmp/nova_users.json',
-    '/var/tmp/users.json',
-    './users.json',
-    '/tmp/nova_data/users.json'
-  ];
-
-  for (const path of paths) {
-    try {
-      if (fs.existsSync(path)) {
-        const data = fs.readFileSync(path, 'utf8');
-        const parsed = JSON.parse(data);
-        console.log('Loaded users from path:', path, parsed.length);
-        globalUsers = parsed;
-        return parsed;
-      }
-    } catch (error) {
-      console.error('Error loading users from path:', path, error);
-    }
-  }
-
-  // Try to create directory and save default users
+// Database functions
+async function getUsers() {
   try {
-    fs.mkdirSync('/tmp/nova_data', { recursive: true });
-    console.log('Created nova_data directory');
+    const users = await kv.get('users');
+    if (users) {
+      console.log('Loaded users from KV:', users.length);
+      return users;
+    }
   } catch (error) {
-    console.error('Error creating directory:', error);
+    console.error('Error loading users from KV:', error);
   }
-
+  
   console.log('Using default users');
-  globalUsers = JSON.parse(JSON.stringify(defaultUsers)); // Deep copy
-  
-  // Try to save default users to persistent location
-  try {
-    const data = JSON.stringify(globalUsers, null, 2);
-    fs.writeFileSync('/tmp/nova_data/users.json', data);
-    console.log('Saved default users to persistent location');
-  } catch (error) {
-    console.error('Error saving default users:', error);
-  }
-  
-  return globalUsers;
+  return defaultUsers;
 }
 
-// Enhanced save function with better persistence strategy
-function saveUsers(users) {
-  globalUsers = users; // Update global cache
-  
-  const paths = [
-    '/tmp/users.json',
-    '/tmp/nova_users.json',
-    '/var/tmp/users.json',
-    './users.json',
-    '/tmp/nova_data/users.json'
-  ];
-
-  let saved = false;
-  for (const path of paths) {
-    try {
-      // Ensure directory exists
-      const dir = path.substring(0, path.lastIndexOf('/'));
-      if (dir) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      
-      const data = JSON.stringify(users, null, 2);
-      fs.writeFileSync(path, data);
-      console.log('Saved users to:', path, users.length);
-      saved = true;
-    } catch (error) {
-      console.error('Error saving users to:', path, error);
-    }
-  }
-  
-  // Also try to create a backup
+async function saveUsers(users) {
   try {
-    const backupPath = '/tmp/nova_data/backup.json';
-    const backup = {
-      users: users,
-      athletes: athletes,
-      events: events,
-      checkIns: checkIns,
-      timestamp: new Date().toISOString()
-    };
-    fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
-    console.log('Created backup at:', backupPath);
+    await kv.set('users', users);
+    console.log('Saved users to KV:', users.length);
+    return true;
   } catch (error) {
-    console.error('Error creating backup:', error);
+    console.error('Error saving users to KV:', error);
+    return false;
   }
-  
-  return saved;
 }
 
-
-
-// Initialize users
-let users = getUsers();
-
-// Initialize athletes and events data with persistence
-function getAthletes() {
-  if (globalAthletes) {
-    return globalAthletes;
-  }
-  
+async function getAthletes() {
   try {
-    if (fs.existsSync('/tmp/nova_data/athletes.json')) {
-      const data = fs.readFileSync('/tmp/nova_data/athletes.json', 'utf8');
-      globalAthletes = JSON.parse(data);
-      return globalAthletes;
+    const athletes = await kv.get('athletes');
+    if (athletes) {
+      return athletes;
     }
   } catch (error) {
-    console.error('Error loading athletes:', error);
+    console.error('Error loading athletes from KV:', error);
   }
   
-  globalAthletes = [
+  const defaultAthletes = [
     {
       id: '1',
       firstName: 'John',
@@ -176,33 +87,31 @@ function getAthletes() {
     }
   ];
   
-  // Save to persistent location
-  try {
-    fs.mkdirSync('/tmp/nova_data', { recursive: true });
-    fs.writeFileSync('/tmp/nova_data/athletes.json', JSON.stringify(globalAthletes, null, 2));
-  } catch (error) {
-    console.error('Error saving default athletes:', error);
-  }
-  
-  return globalAthletes;
+  await saveAthletes(defaultAthletes);
+  return defaultAthletes;
 }
 
-function getEvents() {
-  if (globalEvents) {
-    return globalEvents;
-  }
-  
+async function saveAthletes(athletes) {
   try {
-    if (fs.existsSync('/tmp/nova_data/events.json')) {
-      const data = fs.readFileSync('/tmp/nova_data/events.json', 'utf8');
-      globalEvents = JSON.parse(data);
-      return globalEvents;
+    await kv.set('athletes', athletes);
+    return true;
+  } catch (error) {
+    console.error('Error saving athletes to KV:', error);
+    return false;
+  }
+}
+
+async function getEvents() {
+  try {
+    const events = await kv.get('events');
+    if (events) {
+      return events;
     }
   } catch (error) {
-    console.error('Error loading events:', error);
+    console.error('Error loading events from KV:', error);
   }
   
-  globalEvents = [
+  const defaultEvents = [
     {
       id: '1',
       name: 'Practice Session',
@@ -219,143 +128,118 @@ function getEvents() {
     }
   ];
   
-  // Save to persistent location
-  try {
-    fs.mkdirSync('/tmp/nova_data', { recursive: true });
-    fs.writeFileSync('/tmp/nova_data/events.json', JSON.stringify(globalEvents, null, 2));
-  } catch (error) {
-    console.error('Error saving default events:', error);
-  }
-  
-  return globalEvents;
+  await saveEvents(defaultEvents);
+  return defaultEvents;
 }
 
-function getCheckIns() {
-  if (globalCheckIns) {
-    return globalCheckIns;
-  }
-  
+async function saveEvents(events) {
   try {
-    if (fs.existsSync('/tmp/nova_data/checkins.json')) {
-      const data = fs.readFileSync('/tmp/nova_data/checkins.json', 'utf8');
-      globalCheckIns = JSON.parse(data);
-      return globalCheckIns;
+    await kv.set('events', events);
+    return true;
+  } catch (error) {
+    console.error('Error saving events to KV:', error);
+    return false;
+  }
+}
+
+async function getCheckIns() {
+  try {
+    const checkIns = await kv.get('checkIns');
+    if (checkIns) {
+      return checkIns;
     }
   } catch (error) {
-    console.error('Error loading checkins:', error);
+    console.error('Error loading checkIns from KV:', error);
   }
   
-  globalCheckIns = [];
-  
-  // Save to persistent location
-  try {
-    fs.mkdirSync('/tmp/nova_data', { recursive: true });
-    fs.writeFileSync('/tmp/nova_data/checkins.json', JSON.stringify(globalCheckIns, null, 2));
-  } catch (error) {
-    console.error('Error saving default checkins:', error);
-  }
-  
-  return globalCheckIns;
+  const defaultCheckIns = [];
+  await saveCheckIns(defaultCheckIns);
+  return defaultCheckIns;
 }
 
-// Initialize data
-let athletes = getAthletes();
-let events = getEvents();
-let checkIns = getCheckIns();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
+async function saveCheckIns(checkIns) {
+  try {
+    await kv.set('checkIns', checkIns);
+    return true;
+  } catch (error) {
+    console.error('Error saving checkIns to KV:', error);
+    return false;
+  }
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    message: 'Nova Volleyball Check-in API is running!'
+    message: 'Nova Volleyball Check-in API is running with KV storage!'
   });
 });
 
 // Debug endpoint to check current user data
-app.get('/api/debug/users', (req, res) => {
-  const currentUsers = getUsers();
-  
-  // Check all possible file locations
-  const fileLocations = [
-    '/tmp/users.json',
-    '/tmp/nova_users.json',
-    '/var/tmp/users.json',
-    './users.json',
-    '/tmp/nova_data/users.json'
-  ];
-  
-  const fileStatus = {};
-  fileLocations.forEach(path => {
-    try {
-      fileStatus[path] = {
-        exists: fs.existsSync(path),
-        size: fs.existsSync(path) ? fs.statSync(path).size : 0
-      };
-    } catch (error) {
-      fileStatus[path] = { exists: false, error: error.message };
-    }
-  });
-  
-  res.json({
-    users: currentUsers.map(user => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword;
-    }),
-    fileStatus,
-    userCount: currentUsers.length,
-    globalUsersCached: globalUsers !== null,
-    globalUsersCount: globalUsers ? globalUsers.length : 0,
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const users = await getUsers();
+    res.json({
+      users: users.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      }),
+      userCount: users.length,
+      timestamp: new Date().toISOString(),
+      storage: 'Vercel KV'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load users', details: error.message });
+  }
 });
 
 // Reset users to default (for testing)
-app.post('/api/debug/reset-users', (req, res) => {
-  globalUsers = JSON.parse(JSON.stringify(defaultUsers));
-  saveUsers(globalUsers);
-  res.json({ 
-    message: 'Users reset to default',
-    users: globalUsers.map(user => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword;
-    })
-  });
+app.post('/api/debug/reset-users', async (req, res) => {
+  try {
+    await saveUsers(defaultUsers);
+    res.json({ 
+      message: 'Users reset to default',
+      users: defaultUsers.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      })
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset users', details: error.message });
+  }
 });
 
 // Force save users (for testing)
-app.post('/api/debug/save-users', (req, res) => {
-  const currentUsers = getUsers();
-  const saved = saveUsers(currentUsers);
-  res.json({ 
-    message: saved ? 'Users saved successfully' : 'Failed to save users',
-    userCount: currentUsers.length,
-    saved
-  });
+app.post('/api/debug/save-users', async (req, res) => {
+  try {
+    const currentUsers = await getUsers();
+    const saved = await saveUsers(currentUsers);
+    res.json({ 
+      message: saved ? 'Users saved successfully' : 'Failed to save users',
+      userCount: currentUsers.length,
+      saved
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save users', details: error.message });
+  }
 });
 
 // Backup and restore system
-app.post('/api/debug/backup-data', (req, res) => {
+app.post('/api/debug/backup-data', async (req, res) => {
   try {
     const backup = {
-      users: getUsers(),
-      athletes: athletes,
-      events: events,
-      checkIns: checkIns,
+      users: await getUsers(),
+      athletes: await getAthletes(),
+      events: await getEvents(),
+      checkIns: await getCheckIns(),
       timestamp: new Date().toISOString()
     };
     
-    const backupPath = '/tmp/nova_data/backup.json';
-    fs.mkdirSync('/tmp/nova_data', { recursive: true });
-    fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+    await kv.set('backup', backup);
     
     res.json({ 
       message: 'Backup created successfully',
-      backupPath,
       dataSize: JSON.stringify(backup).length
     });
   } catch (error) {
@@ -363,27 +247,21 @@ app.post('/api/debug/backup-data', (req, res) => {
   }
 });
 
-app.post('/api/debug/restore-data', (req, res) => {
+app.post('/api/debug/restore-data', async (req, res) => {
   try {
-    const backupPath = '/tmp/nova_data/backup.json';
-    if (fs.existsSync(backupPath)) {
-      const data = fs.readFileSync(backupPath, 'utf8');
-      const backup = JSON.parse(data);
-      
-      globalUsers = backup.users;
-      athletes = backup.athletes || athletes;
-      events = backup.events || events;
-      checkIns = backup.checkIns || checkIns;
-      
-      // Save to all locations
-      saveUsers(globalUsers);
+    const backup = await kv.get('backup');
+    if (backup) {
+      await saveUsers(backup.users);
+      await saveAthletes(backup.athletes);
+      await saveEvents(backup.events);
+      await saveCheckIns(backup.checkIns);
       
       res.json({ 
         message: 'Data restored successfully',
-        users: globalUsers.length,
-        athletes: athletes.length,
-        events: events.length,
-        checkIns: checkIns.length
+        users: backup.users.length,
+        athletes: backup.athletes.length,
+        events: backup.events.length,
+        checkIns: backup.checkIns.length
       });
     } else {
       res.status(404).json({ error: 'No backup found' });
@@ -396,7 +274,7 @@ app.post('/api/debug/restore-data', (req, res) => {
 // Simple test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ 
-    message: 'API is working correctly',
+    message: 'API is working correctly with KV storage',
     endpoints: [
       '/api/health',
       '/api/test',
@@ -409,99 +287,111 @@ app.get('/api/test', (req, res) => {
 });
 
 // Auth endpoint
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  const currentUsers = getUsers();
-  
-  // Find user by username
-  const user = currentUsers.find(u => u.username === username);
-  
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid username or password' });
-  }
+  try {
+    const users = await getUsers();
+    
+    // Find user by username
+    const user = users.find(u => u.username === username);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-  // Check password (in real app, this would be hashed comparison)
-  if (user.password !== password) {
-    return res.status(401).json({ error: 'Invalid username or password' });
-  }
+    // Check password (in real app, this would be hashed comparison)
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
 
-  // Return user data without password
-  const { password: _, ...userWithoutPassword } = user;
-  
-  res.json({
-    token: 'test-token-' + Date.now(),
-    user: userWithoutPassword
-  });
+    // Return user data without password
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.json({
+      token: 'test-token-' + Date.now(),
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Login failed', details: error.message });
+  }
 });
 
 // Get all users (admin only)
-app.get('/api/auth/users', (req, res) => {
-  const currentUsers = getUsers();
-  
-  // Return users without passwords
-  const usersWithoutPasswords = currentUsers.map(user => {
-    const { password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  });
-  
-  res.json({
-    users: usersWithoutPasswords
-  });
+app.get('/api/auth/users', async (req, res) => {
+  try {
+    const users = await getUsers();
+    
+    // Return users without passwords
+    const usersWithoutPasswords = users.map(user => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    });
+    
+    res.json({
+      users: usersWithoutPasswords
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load users', details: error.message });
+  }
 });
 
 // Register new user
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { username, email, firstName, lastName, role, password } = req.body;
   
   if (!username || !email || !firstName || !lastName || !role || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  const currentUsers = getUsers();
+  try {
+    const users = await getUsers();
 
-  // Check if username already exists
-  if (currentUsers.find(u => u.username === username)) {
-    return res.status(400).json({ error: 'Username already exists' });
+    // Check if username already exists
+    if (users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Check if email already exists
+    if (users.find(u => u.email === email)) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    // Create new user
+    const newUser = {
+      id: Date.now().toString(),
+      username,
+      email,
+      firstName,
+      lastName,
+      role,
+      password, // In real app, this would be hashed
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    
+    // Save to persistent storage
+    await saveUsers(users);
+
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = newUser;
+    
+    res.json({
+      message: 'User created successfully',
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create user', details: error.message });
   }
-
-  // Check if email already exists
-  if (currentUsers.find(u => u.email === email)) {
-    return res.status(400).json({ error: 'Email already exists' });
-  }
-
-  // Create new user
-  const newUser = {
-    id: Date.now().toString(),
-    username,
-    email,
-    firstName,
-    lastName,
-    role,
-    password, // In real app, this would be hashed
-    createdAt: new Date().toISOString()
-  };
-
-  currentUsers.push(newUser);
-  
-  // Save to persistent storage
-  saveUsers(currentUsers);
-
-  // Return user without password
-  const { password: _, ...userWithoutPassword } = newUser;
-  
-  res.json({
-    message: 'User created successfully',
-    user: userWithoutPassword
-  });
 });
 
 // Update user
-app.put('/api/auth/users/:id', (req, res) => {
+app.put('/api/auth/users/:id', async (req, res) => {
   const { id } = req.params;
   const { username, email, firstName, lastName, role, password } = req.body;
   
@@ -509,142 +399,177 @@ app.put('/api/auth/users/:id', (req, res) => {
     return res.status(400).json({ error: 'Username, email, first name, last name, and role are required' });
   }
 
-  const currentUsers = getUsers();
+  try {
+    const users = await getUsers();
 
-  // Find user by ID
-  const userIndex = currentUsers.findIndex(u => u.id === id);
-  
-  if (userIndex === -1) {
-    return res.status(404).json({ error: 'User not found' });
+    // Find user by ID
+    const userIndex = users.findIndex(u => u.id === id);
+    
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if username is being changed and if it already exists
+    if (username !== users[userIndex].username && users.find(u => u.username === username)) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Check if email is being changed and if it already exists
+    if (email !== users[userIndex].email && users.find(u => u.email === email)) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    // Update user
+    users[userIndex] = {
+      ...users[userIndex],
+      username,
+      email,
+      firstName,
+      lastName,
+      role,
+      ...(password && { password }) // Only update password if provided
+    };
+
+    // Save to persistent storage
+    await saveUsers(users);
+
+    // Return updated user without password
+    const { password: _, ...userWithoutPassword } = users[userIndex];
+    
+    res.json({
+      message: 'User updated successfully',
+      user: userWithoutPassword
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user', details: error.message });
   }
-
-  // Check if username is being changed and if it already exists
-  if (username !== currentUsers[userIndex].username && currentUsers.find(u => u.username === username)) {
-    return res.status(400).json({ error: 'Username already exists' });
-  }
-
-  // Check if email is being changed and if it already exists
-  if (email !== currentUsers[userIndex].email && currentUsers.find(u => u.email === email)) {
-    return res.status(400).json({ error: 'Email already exists' });
-  }
-
-  // Update user
-  currentUsers[userIndex] = {
-    ...currentUsers[userIndex],
-    username,
-    email,
-    firstName,
-    lastName,
-    role,
-    ...(password && { password }) // Only update password if provided
-  };
-
-  // Save to persistent storage
-  saveUsers(currentUsers);
-
-  // Return updated user without password
-  const { password: _, ...userWithoutPassword } = currentUsers[userIndex];
-  
-  res.json({
-    message: 'User updated successfully',
-    user: userWithoutPassword
-  });
 });
 
 // Delete user
-app.delete('/api/auth/users/:id', (req, res) => {
+app.delete('/api/auth/users/:id', async (req, res) => {
   const { id } = req.params;
   
-  const currentUsers = getUsers();
-  
-  // Find user by ID
-  const userIndex = currentUsers.findIndex(u => u.id === id);
-  
-  if (userIndex === -1) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+  try {
+    const users = await getUsers();
+    
+    // Find user by ID
+    const userIndex = users.findIndex(u => u.id === id);
+    
+    if (userIndex === -1) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-  // Remove user from array
-  currentUsers.splice(userIndex, 1);
-  
-  // Save to persistent storage
-  saveUsers(currentUsers);
-  
-  res.json({ message: 'User deleted successfully' });
+    // Remove user from array
+    users.splice(userIndex, 1);
+    
+    // Save to persistent storage
+    await saveUsers(users);
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user', details: error.message });
+  }
 });
 
 // Athletes endpoints
-app.get('/api/athletes', (req, res) => {
-  res.json({ athletes });
+app.get('/api/athletes', async (req, res) => {
+  try {
+    const athletes = await getAthletes();
+    res.json({ athletes });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load athletes', details: error.message });
+  }
 });
 
-app.post('/api/athletes', (req, res) => {
+app.post('/api/athletes', async (req, res) => {
   const { firstName, lastName, email, phone, dateOfBirth, emergencyContact, emergencyContactEmail, emergencyPhone } = req.body;
   
   if (!firstName || !lastName || !dateOfBirth || !emergencyContact || !emergencyPhone) {
     return res.status(400).json({ error: 'Required fields missing' });
   }
 
-  const newAthlete = {
-    id: Date.now().toString(),
-    firstName,
-    lastName,
-    email: email || '',
-    phone: phone || '',
-    dateOfBirth,
-    emergencyContact,
-    emergencyContactEmail: emergencyContactEmail || '',
-    emergencyPhone,
-    hasValidWaiver: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  try {
+    const athletes = await getAthletes();
 
-  athletes.push(newAthlete);
-  res.json({ message: 'Athlete created successfully', athlete: newAthlete });
+    const newAthlete = {
+      id: Date.now().toString(),
+      firstName,
+      lastName,
+      email: email || '',
+      phone: phone || '',
+      dateOfBirth,
+      emergencyContact,
+      emergencyContactEmail: emergencyContactEmail || '',
+      emergencyPhone,
+      hasValidWaiver: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    athletes.push(newAthlete);
+    await saveAthletes(athletes);
+    
+    res.json({ message: 'Athlete created successfully', athlete: newAthlete });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create athlete', details: error.message });
+  }
 });
 
-app.put('/api/athletes/:id', (req, res) => {
+app.put('/api/athletes/:id', async (req, res) => {
   const { id } = req.params;
   const { firstName, lastName, email, phone, dateOfBirth, emergencyContact, emergencyContactEmail, emergencyPhone, hasValidWaiver } = req.body;
   
-  const athleteIndex = athletes.findIndex(a => a.id === id);
-  if (athleteIndex === -1) {
-    return res.status(404).json({ error: 'Athlete not found' });
+  try {
+    const athletes = await getAthletes();
+    
+    const athleteIndex = athletes.findIndex(a => a.id === id);
+    if (athleteIndex === -1) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
+
+    athletes[athleteIndex] = {
+      ...athletes[athleteIndex],
+      firstName,
+      lastName,
+      email: email || '',
+      phone: phone || '',
+      dateOfBirth,
+      emergencyContact,
+      emergencyContactEmail: emergencyContactEmail || '',
+      emergencyPhone,
+      hasValidWaiver: hasValidWaiver || false,
+      updatedAt: new Date().toISOString()
+    };
+
+    await saveAthletes(athletes);
+    res.json({ message: 'Athlete updated successfully', athlete: athletes[athleteIndex] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update athlete', details: error.message });
   }
-
-  athletes[athleteIndex] = {
-    ...athletes[athleteIndex],
-    firstName,
-    lastName,
-    email: email || '',
-    phone: phone || '',
-    dateOfBirth,
-    emergencyContact,
-    emergencyContactEmail: emergencyContactEmail || '',
-    emergencyPhone,
-    hasValidWaiver: hasValidWaiver || false,
-    updatedAt: new Date().toISOString()
-  };
-
-  res.json({ message: 'Athlete updated successfully', athlete: athletes[athleteIndex] });
 });
 
-app.delete('/api/athletes/:id', (req, res) => {
+app.delete('/api/athletes/:id', async (req, res) => {
   const { id } = req.params;
   
-  const athleteIndex = athletes.findIndex(a => a.id === id);
-  if (athleteIndex === -1) {
-    return res.status(404).json({ error: 'Athlete not found' });
-  }
+  try {
+    const athletes = await getAthletes();
+    
+    const athleteIndex = athletes.findIndex(a => a.id === id);
+    if (athleteIndex === -1) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
 
-  athletes.splice(athleteIndex, 1);
-  res.json({ message: 'Athlete deleted successfully' });
+    athletes.splice(athleteIndex, 1);
+    await saveAthletes(athletes);
+    
+    res.json({ message: 'Athlete deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete athlete', details: error.message });
+  }
 });
 
 // Athletes search endpoint
 app.get('/api/athletes/search', (req, res) => {
-  const { query } = req.query;
   res.json({ 
     athletes: [
       {
@@ -666,174 +591,255 @@ app.get('/api/athletes/search', (req, res) => {
 });
 
 // Events endpoints
-app.get('/api/events', (req, res) => {
-  res.json({ events });
+app.get('/api/events', async (req, res) => {
+  try {
+    const events = await getEvents();
+    res.json({ events });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load events', details: error.message });
+  }
 });
 
-app.post('/api/events', (req, res) => {
+app.post('/api/events', async (req, res) => {
   const { name, description, date, startTime, endTime, maxCapacity } = req.body;
   
   if (!name || !date || !startTime || !endTime || !maxCapacity) {
     return res.status(400).json({ error: 'Required fields missing' });
   }
 
-  const newEvent = {
-    id: Date.now().toString(),
-    name,
-    description: description || '',
-    date,
-    startTime,
-    endTime,
-    maxCapacity: parseInt(maxCapacity),
-    currentCapacity: 0,
-    isActive: true,
-    createdBy: 'admin',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  try {
+    const events = await getEvents();
 
-  events.push(newEvent);
-  res.json({ message: 'Event created successfully', event: newEvent });
+    const newEvent = {
+      id: Date.now().toString(),
+      name,
+      description: description || '',
+      date,
+      startTime,
+      endTime,
+      maxCapacity: parseInt(maxCapacity),
+      currentCapacity: 0,
+      isActive: true,
+      createdBy: 'admin',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    events.push(newEvent);
+    await saveEvents(events);
+    
+    res.json({ message: 'Event created successfully', event: newEvent });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create event', details: error.message });
+  }
 });
 
-app.put('/api/events/:id', (req, res) => {
+app.put('/api/events/:id', async (req, res) => {
   const { id } = req.params;
   const { name, description, date, startTime, endTime, maxCapacity, isActive } = req.body;
   
-  const eventIndex = events.findIndex(e => e.id === id);
-  if (eventIndex === -1) {
-    return res.status(404).json({ error: 'Event not found' });
+  try {
+    const events = await getEvents();
+    
+    const eventIndex = events.findIndex(e => e.id === id);
+    if (eventIndex === -1) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    events[eventIndex] = {
+      ...events[eventIndex],
+      name,
+      description: description || '',
+      date,
+      startTime,
+      endTime,
+      maxCapacity: parseInt(maxCapacity),
+      isActive: isActive !== undefined ? isActive : events[eventIndex].isActive,
+      updatedAt: new Date().toISOString()
+    };
+
+    await saveEvents(events);
+    res.json({ message: 'Event updated successfully', event: events[eventIndex] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update event', details: error.message });
   }
-
-  events[eventIndex] = {
-    ...events[eventIndex],
-    name,
-    description: description || '',
-    date,
-    startTime,
-    endTime,
-    maxCapacity: parseInt(maxCapacity),
-    isActive: isActive !== undefined ? isActive : events[eventIndex].isActive,
-    updatedAt: new Date().toISOString()
-  };
-
-  res.json({ message: 'Event updated successfully', event: events[eventIndex] });
 });
 
-app.delete('/api/events/:id', (req, res) => {
+app.delete('/api/events/:id', async (req, res) => {
   const { id } = req.params;
   
-  const eventIndex = events.findIndex(e => e.id === id);
-  if (eventIndex === -1) {
-    return res.status(404).json({ error: 'Event not found' });
-  }
+  try {
+    const events = await getEvents();
+    
+    const eventIndex = events.findIndex(e => e.id === id);
+    if (eventIndex === -1) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
 
-  events.splice(eventIndex, 1);
-  res.json({ message: 'Event deleted successfully' });
+    events.splice(eventIndex, 1);
+    await saveEvents(events);
+    
+    res.json({ message: 'Event deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete event', details: error.message });
+  }
 });
 
 // Check-ins endpoints
-app.get('/api/checkins', (req, res) => {
-  res.json({ checkins });
+app.get('/api/checkins', async (req, res) => {
+  try {
+    const checkIns = await getCheckIns();
+    res.json({ checkins: checkIns });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load check-ins', details: error.message });
+  }
 });
 
-app.post('/api/checkins', (req, res) => {
+app.post('/api/checkins', async (req, res) => {
   const { athleteId, eventId, notes } = req.body;
   
   if (!athleteId || !eventId) {
     return res.status(400).json({ error: 'Athlete ID and Event ID are required' });
   }
 
-  const athlete = athletes.find(a => a.id === athleteId);
-  const event = events.find(e => e.id === eventId);
-  
-  if (!athlete) {
-    return res.status(404).json({ error: 'Athlete not found' });
-  }
-  
-  if (!event) {
-    return res.status(404).json({ error: 'Event not found' });
-  }
+  try {
+    const athletes = await getAthletes();
+    const events = await getEvents();
+    const checkIns = await getCheckIns();
 
-  const newCheckIn = {
-    id: Date.now().toString(),
-    athleteId,
-    eventId,
-    checkInTime: new Date().toISOString(),
-    waiverValidated: athlete.hasValidWaiver,
-    notes: notes || '',
-    createdAt: new Date().toISOString(),
-    firstName: athlete.firstName,
-    lastName: athlete.lastName,
-    eventName: event.name
-  };
+    const athlete = athletes.find(a => a.id === athleteId);
+    const event = events.find(e => e.id === eventId);
+    
+    if (!athlete) {
+      return res.status(404).json({ error: 'Athlete not found' });
+    }
+    
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
 
-  checkIns.push(newCheckIn);
-  
-  // Update event capacity
-  event.currentCapacity += 1;
-  
-  res.json({ message: 'Check-in successful', checkIn: newCheckIn });
+    const newCheckIn = {
+      id: Date.now().toString(),
+      athleteId,
+      eventId,
+      checkInTime: new Date().toISOString(),
+      waiverValidated: athlete.hasValidWaiver,
+      notes: notes || '',
+      createdAt: new Date().toISOString(),
+      firstName: athlete.firstName,
+      lastName: athlete.lastName,
+      eventName: event.name
+    };
+
+    checkIns.push(newCheckIn);
+    await saveCheckIns(checkIns);
+    
+    // Update event capacity
+    event.currentCapacity += 1;
+    await saveEvents(events);
+    
+    res.json({ message: 'Check-in successful', checkIn: newCheckIn });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create check-in', details: error.message });
+  }
 });
 
 // Stats endpoints
-app.get('/api/checkins/stats/overview', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayCheckIns = checkIns.filter(checkIn => 
-    checkIn.checkInTime.startsWith(today)
-  );
-  
-  const stats = {
-    today: todayCheckIns.length,
-    total: checkIns.length,
-    waiverValidated: checkIns.filter(c => c.waiverValidated).length,
-    waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
-  };
-  
-  res.json({ stats });
+app.get('/api/checkins/stats/overview', async (req, res) => {
+  try {
+    const checkIns = await getCheckIns();
+    const today = new Date().toISOString().split('T')[0];
+    const todayCheckIns = checkIns.filter(checkIn => 
+      checkIn.checkInTime.startsWith(today)
+    );
+    
+    const stats = {
+      today: todayCheckIns.length,
+      total: checkIns.length,
+      waiverValidated: checkIns.filter(c => c.waiverValidated).length,
+      waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
+    };
+    
+    res.json({ stats });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load stats', details: error.message });
+  }
 });
 
 // Legacy stats endpoint
-app.get('/api/checkins/stats', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayCheckIns = checkIns.filter(checkIn => 
-    checkIn.checkInTime.startsWith(today)
-  );
-  
-  const stats = {
-    today: todayCheckIns.length,
-    total: checkIns.length,
-    waiverValidated: checkIns.filter(c => c.waiverValidated).length,
-    waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
-  };
-  
-  res.json({ stats });
+app.get('/api/checkins/stats', async (req, res) => {
+  try {
+    const checkIns = await getCheckIns();
+    const today = new Date().toISOString().split('T')[0];
+    const todayCheckIns = checkIns.filter(checkIn => 
+      checkIn.checkInTime.startsWith(today)
+    );
+    
+    const stats = {
+      today: todayCheckIns.length,
+      total: checkIns.length,
+      waiverValidated: checkIns.filter(c => c.waiverValidated).length,
+      waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
+    };
+    
+    res.json({ stats });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load stats', details: error.message });
+  }
 });
 
 // Additional endpoints for the app
-app.get('/api/events/today', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayEvents = events.filter(event => event.date === today && event.isActive);
-  res.json({ events: todayEvents });
+app.get('/api/events/today', async (req, res) => {
+  try {
+    const events = await getEvents();
+    const today = new Date().toISOString().split('T')[0];
+    const todayEvents = events.filter(event => event.date === today && event.isActive);
+    res.json({ events: todayEvents });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load today\'s events', details: error.message });
+  }
 });
 
-app.get('/api/events/past', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const pastEvents = events.filter(event => event.date < today);
-  res.json({ events: pastEvents });
+app.get('/api/events/past', async (req, res) => {
+  try {
+    const events = await getEvents();
+    const today = new Date().toISOString().split('T')[0];
+    const pastEvents = events.filter(event => event.date < today);
+    res.json({ events: pastEvents });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load past events', details: error.message });
+  }
 });
 
-app.get('/api/events/disabled', (req, res) => {
-  const disabledEvents = events.filter(event => !event.isActive);
-  res.json({ events: disabledEvents });
+app.get('/api/events/disabled', async (req, res) => {
+  try {
+    const events = await getEvents();
+    const disabledEvents = events.filter(event => !event.isActive);
+    res.json({ events: disabledEvents });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load disabled events', details: error.message });
+  }
 });
 
-app.get('/api/checkins/today', (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todayCheckIns = checkIns.filter(checkIn => 
-    checkIn.checkInTime.startsWith(today)
-  );
-  res.json({ checkins: todayCheckIns });
+app.get('/api/checkins/today', async (req, res) => {
+  try {
+    const checkIns = await getCheckIns();
+    const today = new Date().toISOString().split('T')[0];
+    const todayCheckIns = checkIns.filter(checkIn => 
+      checkIn.checkInTime.startsWith(today)
+    );
+    res.json({ checkins: todayCheckIns });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load today\'s check-ins', details: error.message });
+  }
+});
+
+// Serve static files
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Catch all handler for SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 module.exports = app;
