@@ -53,6 +53,87 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
+// Get all users (admin only)
+app.get('/api/auth/users', (req, res) => {
+  res.json({
+    users: [
+      {
+        id: '1',
+        username: 'admin',
+        email: 'admin@nova.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        role: 'admin',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: '2',
+        username: 'staff1',
+        email: 'staff1@nova.com',
+        firstName: 'Staff',
+        lastName: 'Member',
+        role: 'staff',
+        createdAt: new Date().toISOString()
+      }
+    ]
+  });
+});
+
+// Register new user
+app.post('/api/auth/register', (req, res) => {
+  const { username, email, firstName, lastName, role, password } = req.body;
+  
+  if (!username || !email || !firstName || !lastName || !role || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // For now, just return success
+  res.json({
+    message: 'User created successfully',
+    user: {
+      id: Date.now().toString(),
+      username,
+      email,
+      firstName,
+      lastName,
+      role,
+      createdAt: new Date().toISOString()
+    }
+  });
+});
+
+// Update user
+app.put('/api/auth/users/:id', (req, res) => {
+  const { id } = req.params;
+  const { username, email, firstName, lastName, role, password } = req.body;
+  
+  if (!username || !email || !firstName || !lastName || !role) {
+    return res.status(400).json({ error: 'Username, email, first name, last name, and role are required' });
+  }
+
+  // For now, just return success
+  res.json({
+    message: 'User updated successfully',
+    user: {
+      id,
+      username,
+      email,
+      firstName,
+      lastName,
+      role,
+      createdAt: new Date().toISOString()
+    }
+  });
+});
+
+// Delete user
+app.delete('/api/auth/users/:id', (req, res) => {
+  const { id } = req.params;
+  
+  // For now, just return success
+  res.json({ message: 'User deleted successfully' });
+});
+
 // Athletes endpoint (simplified)
 app.get('/api/athletes', (req, res) => {
   res.json({ 
