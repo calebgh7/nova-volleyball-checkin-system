@@ -3,10 +3,7 @@
   "builds": [
     {
       "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["server/**/*"]
-      }
+      "use": "@vercel/node"
     },
     {
       "src": "package.json",
@@ -27,7 +24,9 @@
       "dest": "/index.html"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30
+    }
   }
 }
