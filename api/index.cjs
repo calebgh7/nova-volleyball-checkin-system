@@ -90,6 +90,56 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  const { username, email, firstName, lastName, role, password } = req.body;
+  
+  if (!username || !email || !firstName || !lastName || !role || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    // Check if username already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      throw checkError;
+    }
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Create new user
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        username,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        role,
+        password_hash: password // In production, hash the password
+      })
+      .select('id, username, email, first_name, last_name, role, created_at, updated_at')
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Failed to create user', details: error.message });
+  }
+});
+
 // Get all users
 app.get('/api/auth/users', async (req, res) => {
   try {
