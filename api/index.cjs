@@ -34,25 +34,69 @@ function getUsers() {
   try {
     if (fs.existsSync('/tmp/users.json')) {
       const data = fs.readFileSync('/tmp/users.json', 'utf8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      console.log('Loaded users from file:', parsed.length);
+      return parsed;
     }
   } catch (error) {
     console.error('Error loading users from file:', error);
   }
-  return defaultUsers;
+  console.log('Using default users');
+  return JSON.parse(JSON.stringify(defaultUsers)); // Deep copy
 }
 
 // Function to save users to file
 function saveUsers(users) {
   try {
-    fs.writeFileSync('/tmp/users.json', JSON.stringify(users, null, 2));
+    const data = JSON.stringify(users, null, 2);
+    fs.writeFileSync('/tmp/users.json', data);
+    console.log('Saved users to file:', users.length);
+    return true;
   } catch (error) {
     console.error('Error saving users:', error);
+    return false;
   }
 }
 
 // Initialize users
 let users = getUsers();
+
+// Initialize athletes and events data
+let athletes = [
+  {
+    id: '1',
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'john@example.com',
+    phone: '555-1234',
+    dateOfBirth: '2000-01-01',
+    emergencyContact: 'Jane Doe',
+    emergencyContactEmail: 'jane@example.com',
+    emergencyPhone: '555-5678',
+    hasValidWaiver: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+let events = [
+  {
+    id: '1',
+    name: 'Practice Session',
+    description: 'Regular volleyball practice',
+    date: '2025-08-09',
+    startTime: '18:00',
+    endTime: '20:00',
+    maxCapacity: 20,
+    currentCapacity: 0,
+    isActive: true,
+    createdBy: 'admin',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+let checkIns = [];
 
 // Middleware
 app.use(cors());
@@ -263,26 +307,73 @@ app.delete('/api/auth/users/:id', (req, res) => {
   res.json({ message: 'User deleted successfully' });
 });
 
-// Athletes endpoint (simplified)
+// Athletes endpoints
 app.get('/api/athletes', (req, res) => {
-  res.json({ 
-    athletes: [
-      {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        phone: '555-1234',
-        dateOfBirth: '2000-01-01',
-        emergencyContact: 'Jane Doe',
-        emergencyContactEmail: 'jane@example.com',
-        emergencyPhone: '555-5678',
-        hasValidWaiver: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]
-  });
+  res.json({ athletes });
+});
+
+app.post('/api/athletes', (req, res) => {
+  const { firstName, lastName, email, phone, dateOfBirth, emergencyContact, emergencyContactEmail, emergencyPhone } = req.body;
+  
+  if (!firstName || !lastName || !dateOfBirth || !emergencyContact || !emergencyPhone) {
+    return res.status(400).json({ error: 'Required fields missing' });
+  }
+
+  const newAthlete = {
+    id: Date.now().toString(),
+    firstName,
+    lastName,
+    email: email || '',
+    phone: phone || '',
+    dateOfBirth,
+    emergencyContact,
+    emergencyContactEmail: emergencyContactEmail || '',
+    emergencyPhone,
+    hasValidWaiver: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  athletes.push(newAthlete);
+  res.json({ message: 'Athlete created successfully', athlete: newAthlete });
+});
+
+app.put('/api/athletes/:id', (req, res) => {
+  const { id } = req.params;
+  const { firstName, lastName, email, phone, dateOfBirth, emergencyContact, emergencyContactEmail, emergencyPhone, hasValidWaiver } = req.body;
+  
+  const athleteIndex = athletes.findIndex(a => a.id === id);
+  if (athleteIndex === -1) {
+    return res.status(404).json({ error: 'Athlete not found' });
+  }
+
+  athletes[athleteIndex] = {
+    ...athletes[athleteIndex],
+    firstName,
+    lastName,
+    email: email || '',
+    phone: phone || '',
+    dateOfBirth,
+    emergencyContact,
+    emergencyContactEmail: emergencyContactEmail || '',
+    emergencyPhone,
+    hasValidWaiver: hasValidWaiver || false,
+    updatedAt: new Date().toISOString()
+  };
+
+  res.json({ message: 'Athlete updated successfully', athlete: athletes[athleteIndex] });
+});
+
+app.delete('/api/athletes/:id', (req, res) => {
+  const { id } = req.params;
+  
+  const athleteIndex = athletes.findIndex(a => a.id === id);
+  if (athleteIndex === -1) {
+    return res.status(404).json({ error: 'Athlete not found' });
+  }
+
+  athletes.splice(athleteIndex, 1);
+  res.json({ message: 'Athlete deleted successfully' });
 });
 
 // Athletes search endpoint
@@ -308,116 +399,175 @@ app.get('/api/athletes/search', (req, res) => {
   });
 });
 
-// Events endpoint (simplified)
+// Events endpoints
 app.get('/api/events', (req, res) => {
-  res.json({ 
-    events: [
-      {
-        id: '1',
-        name: 'Practice Session',
-        description: 'Regular volleyball practice',
-        date: new Date().toISOString().split('T')[0],
-        startTime: '18:00',
-        endTime: '20:00',
-        maxCapacity: 20,
-        currentCapacity: 0,
-        isActive: true,
-        createdBy: 'admin',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]
-  });
+  res.json({ events });
 });
 
-// Check-ins endpoint (simplified)
+app.post('/api/events', (req, res) => {
+  const { name, description, date, startTime, endTime, maxCapacity } = req.body;
+  
+  if (!name || !date || !startTime || !endTime || !maxCapacity) {
+    return res.status(400).json({ error: 'Required fields missing' });
+  }
+
+  const newEvent = {
+    id: Date.now().toString(),
+    name,
+    description: description || '',
+    date,
+    startTime,
+    endTime,
+    maxCapacity: parseInt(maxCapacity),
+    currentCapacity: 0,
+    isActive: true,
+    createdBy: 'admin',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  events.push(newEvent);
+  res.json({ message: 'Event created successfully', event: newEvent });
+});
+
+app.put('/api/events/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, description, date, startTime, endTime, maxCapacity, isActive } = req.body;
+  
+  const eventIndex = events.findIndex(e => e.id === id);
+  if (eventIndex === -1) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+
+  events[eventIndex] = {
+    ...events[eventIndex],
+    name,
+    description: description || '',
+    date,
+    startTime,
+    endTime,
+    maxCapacity: parseInt(maxCapacity),
+    isActive: isActive !== undefined ? isActive : events[eventIndex].isActive,
+    updatedAt: new Date().toISOString()
+  };
+
+  res.json({ message: 'Event updated successfully', event: events[eventIndex] });
+});
+
+app.delete('/api/events/:id', (req, res) => {
+  const { id } = req.params;
+  
+  const eventIndex = events.findIndex(e => e.id === id);
+  if (eventIndex === -1) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+
+  events.splice(eventIndex, 1);
+  res.json({ message: 'Event deleted successfully' });
+});
+
+// Check-ins endpoints
 app.get('/api/checkins', (req, res) => {
-  res.json({ 
-    checkins: [
-      {
-        id: '1',
-        athleteId: '1',
-        eventId: '1',
-        checkInTime: new Date().toISOString(),
-        waiverValidated: true,
-        notes: 'Test check-in',
-        createdAt: new Date().toISOString(),
-        firstName: 'John',
-        lastName: 'Doe',
-        eventName: 'Practice Session'
-      }
-    ]
-  });
+  res.json({ checkins });
 });
 
-// Stats endpoint (simplified)
+app.post('/api/checkins', (req, res) => {
+  const { athleteId, eventId, notes } = req.body;
+  
+  if (!athleteId || !eventId) {
+    return res.status(400).json({ error: 'Athlete ID and Event ID are required' });
+  }
+
+  const athlete = athletes.find(a => a.id === athleteId);
+  const event = events.find(e => e.id === eventId);
+  
+  if (!athlete) {
+    return res.status(404).json({ error: 'Athlete not found' });
+  }
+  
+  if (!event) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+
+  const newCheckIn = {
+    id: Date.now().toString(),
+    athleteId,
+    eventId,
+    checkInTime: new Date().toISOString(),
+    waiverValidated: athlete.hasValidWaiver,
+    notes: notes || '',
+    createdAt: new Date().toISOString(),
+    firstName: athlete.firstName,
+    lastName: athlete.lastName,
+    eventName: event.name
+  };
+
+  checkIns.push(newCheckIn);
+  
+  // Update event capacity
+  event.currentCapacity += 1;
+  
+  res.json({ message: 'Check-in successful', checkIn: newCheckIn });
+});
+
+// Stats endpoints
 app.get('/api/checkins/stats/overview', (req, res) => {
-  res.json({
-    stats: {
-      today: 1,
-      total: 1,
-      waiverValidated: 1,
-      waiverNotValidated: 0
-    }
-  });
+  const today = new Date().toISOString().split('T')[0];
+  const todayCheckIns = checkIns.filter(checkIn => 
+    checkIn.checkInTime.startsWith(today)
+  );
+  
+  const stats = {
+    today: todayCheckIns.length,
+    total: checkIns.length,
+    waiverValidated: checkIns.filter(c => c.waiverValidated).length,
+    waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
+  };
+  
+  res.json({ stats });
 });
 
 // Legacy stats endpoint
 app.get('/api/checkins/stats', (req, res) => {
-  res.json({
-    stats: {
-      today: 1,
-      total: 1,
-      waiverValidated: 1,
-      waiverNotValidated: 0
-    }
-  });
+  const today = new Date().toISOString().split('T')[0];
+  const todayCheckIns = checkIns.filter(checkIn => 
+    checkIn.checkInTime.startsWith(today)
+  );
+  
+  const stats = {
+    today: todayCheckIns.length,
+    total: checkIns.length,
+    waiverValidated: checkIns.filter(c => c.waiverValidated).length,
+    waiverNotValidated: checkIns.filter(c => !c.waiverValidated).length
+  };
+  
+  res.json({ stats });
 });
 
 // Additional endpoints for the app
 app.get('/api/events/today', (req, res) => {
-  res.json({ 
-    events: [
-      {
-        id: '1',
-        name: 'Practice Session',
-        description: 'Regular volleyball practice',
-        date: new Date().toISOString().split('T')[0],
-        startTime: '18:00',
-        endTime: '20:00',
-        maxCapacity: 20,
-        currentCapacity: 0,
-        isActive: true
-      }
-    ]
-  });
+  const today = new Date().toISOString().split('T')[0];
+  const todayEvents = events.filter(event => event.date === today && event.isActive);
+  res.json({ events: todayEvents });
 });
 
 app.get('/api/events/past', (req, res) => {
-  res.json({ events: [] });
+  const today = new Date().toISOString().split('T')[0];
+  const pastEvents = events.filter(event => event.date < today);
+  res.json({ events: pastEvents });
 });
 
 app.get('/api/events/disabled', (req, res) => {
-  res.json({ events: [] });
+  const disabledEvents = events.filter(event => !event.isActive);
+  res.json({ events: disabledEvents });
 });
 
 app.get('/api/checkins/today', (req, res) => {
-  res.json({ 
-    checkins: [
-      {
-        id: '1',
-        athleteId: '1',
-        eventId: '1',
-        checkInTime: new Date().toISOString(),
-        waiverValidated: true,
-        notes: 'Test check-in',
-        createdAt: new Date().toISOString(),
-        firstName: 'John',
-        lastName: 'Doe',
-        eventName: 'Practice Session'
-      }
-    ]
-  });
+  const today = new Date().toISOString().split('T')[0];
+  const todayCheckIns = checkIns.filter(checkIn => 
+    checkIn.checkInTime.startsWith(today)
+  );
+  res.json({ checkins: todayCheckIns });
 });
 
 module.exports = app;
