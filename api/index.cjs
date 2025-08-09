@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 
@@ -391,14 +390,6 @@ app.get('/api/athletes/search', (req, res) => {
   } else {
     res.json({ athletes });
   }
-});
-
-// Serve static files
-app.use(express.static(path.join(__dirname, '../dist')));
-
-// Catch all handler for SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 module.exports = app;
