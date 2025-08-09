@@ -5,56 +5,54 @@ const path = require('path');
 
 const app = express();
 
-// File path for persistent user storage
-const usersFilePath = '/tmp/users.json';
+// Default user data
+const defaultUsers = [
+  {
+    id: '1',
+    username: 'admin',
+    email: 'admin@nova.com',
+    firstName: 'Admin',
+    lastName: 'User',
+    role: 'admin',
+    password: 'admin123', // In real app, this would be hashed
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '2',
+    username: 'staff1',
+    email: 'staff1@nova.com',
+    firstName: 'Staff',
+    lastName: 'Member',
+    role: 'staff',
+    password: 'staff123', // In real app, this would be hashed
+    createdAt: new Date().toISOString()
+  }
+];
 
-// Function to load users from file
-function loadUsers() {
+// Function to get users (with persistence attempt)
+function getUsers() {
   try {
-    if (fs.existsSync(usersFilePath)) {
-      const data = fs.readFileSync(usersFilePath, 'utf8');
+    if (fs.existsSync('/tmp/users.json')) {
+      const data = fs.readFileSync('/tmp/users.json', 'utf8');
       return JSON.parse(data);
     }
   } catch (error) {
-    console.error('Error loading users:', error);
+    console.error('Error loading users from file:', error);
   }
-  
-  // Default users if file doesn't exist
-  return [
-    {
-      id: '1',
-      username: 'admin',
-      email: 'admin@nova.com',
-      firstName: 'Admin',
-      lastName: 'User',
-      role: 'admin',
-      password: 'admin123', // In real app, this would be hashed
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '2',
-      username: 'staff1',
-      email: 'staff1@nova.com',
-      firstName: 'Staff',
-      lastName: 'Member',
-      role: 'staff',
-      password: 'staff123', // In real app, this would be hashed
-      createdAt: new Date().toISOString()
-    }
-  ];
+  return defaultUsers;
 }
 
 // Function to save users to file
 function saveUsers(users) {
   try {
-    fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
+    fs.writeFileSync('/tmp/users.json', JSON.stringify(users, null, 2));
   } catch (error) {
     console.error('Error saving users:', error);
   }
 }
 
-// Load users from persistent storage
-let users = loadUsers();
+// Initialize users
+let users = getUsers();
 
 // Middleware
 app.use(cors());
@@ -76,8 +74,22 @@ app.get('/api/debug/users', (req, res) => {
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     }),
-    fileExists: fs.existsSync(usersFilePath),
-    filePath: usersFilePath
+    fileExists: fs.existsSync('/tmp/users.json'),
+    filePath: '/tmp/users.json',
+    userCount: users.length
+  });
+});
+
+// Reset users to default (for testing)
+app.post('/api/debug/reset-users', (req, res) => {
+  users = [...defaultUsers];
+  saveUsers(users);
+  res.json({ 
+    message: 'Users reset to default',
+    users: users.map(user => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    })
   });
 });
 
