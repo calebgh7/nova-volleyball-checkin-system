@@ -128,7 +128,9 @@ function EventCard({ event, onEdit, onToggle, onDelete }: EventCardProps) {
 }
 
 export default function EventManagementPage() {
-  const [events, setEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [todayEvents, setTodayEvents] = useState<Event[]>([]);
+  const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
@@ -150,8 +152,16 @@ export default function EventManagementPage() {
 
   const fetchEvents = async () => {
     try {
-      const response = await api.get('/events');
-      setEvents((response.data as { events: Event[] }).events);
+      // Fetch all events, today's events, and past events separately
+      const [allResponse, todayResponse, pastResponse] = await Promise.all([
+        api.get('/events'),
+        api.get('/events/today'),
+        api.get('/events/past')
+      ]);
+      
+      setAllEvents((allResponse.data as { events: Event[] }).events);
+      setTodayEvents((todayResponse.data as { events: Event[] }).events);
+      setPastEvents((pastResponse.data as { events: Event[] }).events);
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {
@@ -228,13 +238,11 @@ export default function EventManagementPage() {
     });
   };
 
-  // Categorize events
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-  
-  const upcomingEvents = events.filter(event => event.isActive && event.date >= today);
-  const allPastEvents = events.filter(event => event.date < today).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const pastEvents = isPastEventsExpanded ? allPastEvents : allPastEvents.slice(0, 5);
-  const disabledEvents = events.filter(event => !event.isActive && event.date >= today);
+  // Use the API-filtered events
+  const upcomingEvents = todayEvents.filter(event => event.isActive);
+  const allPastEvents = pastEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const pastEventsToShow = isPastEventsExpanded ? allPastEvents : allPastEvents.slice(0, 5);
+  const disabledEvents = allEvents.filter(event => !event.isActive && event.date >= new Date().toISOString().split('T')[0]);
 
   return (
     <div className="space-y-8">
@@ -435,7 +443,7 @@ export default function EventManagementPage() {
 
       {/* Enhanced Events List */}
       <div className="space-y-8 animate-fade-in-up animation-delay-500">
-        {events.length > 0 ? (
+        {allEvents.length > 0 ? (
           <>
             {/* Upcoming Events Section */}
             {upcomingEvents.length > 0 && (
@@ -490,7 +498,7 @@ export default function EventManagementPage() {
                 {isPastEventsVisible && (
                   <>
                     <div className="space-y-4">
-                      {pastEvents.map((event) => (
+                      {pastEventsToShow.map((event) => (
                         <EventCard key={event.id} event={event} onEdit={startEditEvent} onToggle={toggleEventStatus} onDelete={deleteEvent} />
                       ))}
                     </div>
@@ -505,7 +513,7 @@ export default function EventManagementPage() {
                           <ChevronDown className="h-4 w-4" />
                         </button>
                         <p className="text-white/60 text-sm mt-2">
-                          Showing {pastEvents.length} of {allPastEvents.length} past events
+                          Showing {pastEventsToShow.length} of {allPastEvents.length} past events
                         </p>
                       </div>
                     )}
