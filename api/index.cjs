@@ -89,7 +89,7 @@ function getUsers() {
   return globalUsers;
 }
 
-// Function to save users to multiple locations with better persistence
+// Enhanced save function with better persistence strategy
 function saveUsers(users) {
   globalUsers = users; // Update global cache
   
@@ -119,48 +119,149 @@ function saveUsers(users) {
     }
   }
   
+  // Also try to create a backup
+  try {
+    const backupPath = '/tmp/nova_data/backup.json';
+    const backup = {
+      users: users,
+      athletes: athletes,
+      events: events,
+      checkIns: checkIns,
+      timestamp: new Date().toISOString()
+    };
+    fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+    console.log('Created backup at:', backupPath);
+  } catch (error) {
+    console.error('Error creating backup:', error);
+  }
+  
   return saved;
 }
+
+
 
 // Initialize users
 let users = getUsers();
 
-// Initialize athletes and events data
-let athletes = [
-  {
-    id: '1',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@example.com',
-    phone: '555-1234',
-    dateOfBirth: '2000-01-01',
-    emergencyContact: 'Jane Doe',
-    emergencyContactEmail: 'jane@example.com',
-    emergencyPhone: '555-5678',
-    hasValidWaiver: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+// Initialize athletes and events data with persistence
+function getAthletes() {
+  if (globalAthletes) {
+    return globalAthletes;
   }
-];
-
-let events = [
-  {
-    id: '1',
-    name: 'Practice Session',
-    description: 'Regular volleyball practice',
-    date: '2025-08-09',
-    startTime: '18:00',
-    endTime: '20:00',
-    maxCapacity: 20,
-    currentCapacity: 0,
-    isActive: true,
-    createdBy: 'admin',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+  
+  try {
+    if (fs.existsSync('/tmp/nova_data/athletes.json')) {
+      const data = fs.readFileSync('/tmp/nova_data/athletes.json', 'utf8');
+      globalAthletes = JSON.parse(data);
+      return globalAthletes;
+    }
+  } catch (error) {
+    console.error('Error loading athletes:', error);
   }
-];
+  
+  globalAthletes = [
+    {
+      id: '1',
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john@example.com',
+      phone: '555-1234',
+      dateOfBirth: '2000-01-01',
+      emergencyContact: 'Jane Doe',
+      emergencyContactEmail: 'jane@example.com',
+      emergencyPhone: '555-5678',
+      hasValidWaiver: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ];
+  
+  // Save to persistent location
+  try {
+    fs.mkdirSync('/tmp/nova_data', { recursive: true });
+    fs.writeFileSync('/tmp/nova_data/athletes.json', JSON.stringify(globalAthletes, null, 2));
+  } catch (error) {
+    console.error('Error saving default athletes:', error);
+  }
+  
+  return globalAthletes;
+}
 
-let checkIns = [];
+function getEvents() {
+  if (globalEvents) {
+    return globalEvents;
+  }
+  
+  try {
+    if (fs.existsSync('/tmp/nova_data/events.json')) {
+      const data = fs.readFileSync('/tmp/nova_data/events.json', 'utf8');
+      globalEvents = JSON.parse(data);
+      return globalEvents;
+    }
+  } catch (error) {
+    console.error('Error loading events:', error);
+  }
+  
+  globalEvents = [
+    {
+      id: '1',
+      name: 'Practice Session',
+      description: 'Regular volleyball practice',
+      date: '2025-08-09',
+      startTime: '18:00',
+      endTime: '20:00',
+      maxCapacity: 20,
+      currentCapacity: 0,
+      isActive: true,
+      createdBy: 'admin',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ];
+  
+  // Save to persistent location
+  try {
+    fs.mkdirSync('/tmp/nova_data', { recursive: true });
+    fs.writeFileSync('/tmp/nova_data/events.json', JSON.stringify(globalEvents, null, 2));
+  } catch (error) {
+    console.error('Error saving default events:', error);
+  }
+  
+  return globalEvents;
+}
+
+function getCheckIns() {
+  if (globalCheckIns) {
+    return globalCheckIns;
+  }
+  
+  try {
+    if (fs.existsSync('/tmp/nova_data/checkins.json')) {
+      const data = fs.readFileSync('/tmp/nova_data/checkins.json', 'utf8');
+      globalCheckIns = JSON.parse(data);
+      return globalCheckIns;
+    }
+  } catch (error) {
+    console.error('Error loading checkins:', error);
+  }
+  
+  globalCheckIns = [];
+  
+  // Save to persistent location
+  try {
+    fs.mkdirSync('/tmp/nova_data', { recursive: true });
+    fs.writeFileSync('/tmp/nova_data/checkins.json', JSON.stringify(globalCheckIns, null, 2));
+  } catch (error) {
+    console.error('Error saving default checkins:', error);
+  }
+  
+  return globalCheckIns;
+}
+
+// Initialize data
+let athletes = getAthletes();
+let events = getEvents();
+let checkIns = getCheckIns();
 
 // Middleware
 app.use(cors());
