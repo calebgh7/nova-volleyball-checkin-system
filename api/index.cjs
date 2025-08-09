@@ -3,6 +3,30 @@ const cors = require('cors');
 
 const app = express();
 
+// In-memory storage for users (in a real app, this would be a database)
+let users = [
+  {
+    id: '1',
+    username: 'admin',
+    email: 'admin@nova.com',
+    firstName: 'Admin',
+    lastName: 'User',
+    role: 'admin',
+    password: 'admin123', // In real app, this would be hashed
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '2',
+    username: 'staff1',
+    email: 'staff1@nova.com',
+    firstName: 'Staff',
+    lastName: 'Member',
+    role: 'staff',
+    password: 'staff123', // In real app, this would be hashed
+    createdAt: new Date().toISOString()
+  }
+];
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -31,7 +55,7 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Auth endpoint (simplified for now)
+// Auth endpoint
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   
@@ -39,43 +63,37 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  // For now, accept any login for testing
+  // Find user by username
+  const user = users.find(u => u.username === username);
+  
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  // Check password (in real app, this would be hashed comparison)
+  if (user.password !== password) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+
+  // Return user data without password
+  const { password: _, ...userWithoutPassword } = user;
+  
   res.json({
     token: 'test-token-' + Date.now(),
-    user: {
-      id: '1',
-      username: username,
-      email: username + '@nova.com',
-      role: 'admin',
-      firstName: 'Admin',
-      lastName: 'User'
-    }
+    user: userWithoutPassword
   });
 });
 
 // Get all users (admin only)
 app.get('/api/auth/users', (req, res) => {
+  // Return users without passwords
+  const usersWithoutPasswords = users.map(user => {
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  });
+  
   res.json({
-    users: [
-      {
-        id: '1',
-        username: 'admin',
-        email: 'admin@nova.com',
-        firstName: 'Admin',
-        lastName: 'User',
-        role: 'admin',
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        username: 'staff1',
-        email: 'staff1@nova.com',
-        firstName: 'Staff',
-        lastName: 'Member',
-        role: 'staff',
-        createdAt: new Date().toISOString()
-      }
-    ]
+    users: usersWithoutPasswords
   });
 });
 
@@ -87,18 +105,36 @@ app.post('/api/auth/register', (req, res) => {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  // For now, just return success
+  // Check if username already exists
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ error: 'Username already exists' });
+  }
+
+  // Check if email already exists
+  if (users.find(u => u.email === email)) {
+    return res.status(400).json({ error: 'Email already exists' });
+  }
+
+  // Create new user
+  const newUser = {
+    id: Date.now().toString(),
+    username,
+    email,
+    firstName,
+    lastName,
+    role,
+    password, // In real app, this would be hashed
+    createdAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+
+  // Return user without password
+  const { password: _, ...userWithoutPassword } = newUser;
+  
   res.json({
     message: 'User created successfully',
-    user: {
-      id: Date.now().toString(),
-      username,
-      email,
-      firstName,
-      lastName,
-      role,
-      createdAt: new Date().toISOString()
-    }
+    user: userWithoutPassword
   });
 });
 
@@ -111,18 +147,40 @@ app.put('/api/auth/users/:id', (req, res) => {
     return res.status(400).json({ error: 'Username, email, first name, last name, and role are required' });
   }
 
-  // For now, just return success
+  // Find user by ID
+  const userIndex = users.findIndex(u => u.id === id);
+  
+  if (userIndex === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  // Check if username is being changed and if it already exists
+  if (username !== users[userIndex].username && users.find(u => u.username === username)) {
+    return res.status(400).json({ error: 'Username already exists' });
+  }
+
+  // Check if email is being changed and if it already exists
+  if (email !== users[userIndex].email && users.find(u => u.email === email)) {
+    return res.status(400).json({ error: 'Email already exists' });
+  }
+
+  // Update user
+  users[userIndex] = {
+    ...users[userIndex],
+    username,
+    email,
+    firstName,
+    lastName,
+    role,
+    ...(password && { password }) // Only update password if provided
+  };
+
+  // Return updated user without password
+  const { password: _, ...userWithoutPassword } = users[userIndex];
+  
   res.json({
     message: 'User updated successfully',
-    user: {
-      id,
-      username,
-      email,
-      firstName,
-      lastName,
-      role,
-      createdAt: new Date().toISOString()
-    }
+    user: userWithoutPassword
   });
 });
 
@@ -130,7 +188,16 @@ app.put('/api/auth/users/:id', (req, res) => {
 app.delete('/api/auth/users/:id', (req, res) => {
   const { id } = req.params;
   
-  // For now, just return success
+  // Find user by ID
+  const userIndex = users.findIndex(u => u.id === id);
+  
+  if (userIndex === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  // Remove user from array
+  users.splice(userIndex, 1);
+  
   res.json({ message: 'User deleted successfully' });
 });
 
