@@ -172,61 +172,65 @@ export default function CheckInPage() {
 
   return (
     <div className="min-h-screen bg-nova-dark">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
         {/* Header with Back Button */}
-        <div className="text-center mb-8 relative">
+        <div className="text-center mb-6 sm:mb-8 relative">
           <button
             onClick={() => navigate('/')}
-            className="absolute left-0 top-1/2 transform -translate-y-1/2 flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 transition-all duration-300 hover:scale-105"
+            className="absolute left-0 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/20 transition-all duration-300 hover:scale-105 text-xs sm:text-sm"
           >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Login</span>
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Back to Login</span>
+            <span className="sm:hidden">Back</span>
           </button>
           
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2 sm:mb-4">
             Nova Volleyball Check-In
           </h1>
-          <p className="text-xl text-nova-cyan">
+          <p className="text-base sm:text-xl text-nova-cyan px-4">
             Welcome! Check in for today's events or register as a new athlete.
           </p>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex justify-center mb-8">
-          <div className="bg-gradient-to-r from-nova-purple/20 to-nova-cyan/20 backdrop-blur-sm rounded-2xl p-2 border border-nova-cyan/30">
-            <div className="flex space-x-2">
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="bg-gradient-to-r from-nova-purple/20 to-nova-cyan/20 backdrop-blur-sm rounded-2xl p-1 sm:p-2 border border-nova-cyan/30 w-full max-w-md">
+            <div className="flex space-x-1 sm:space-x-2">
               <button
                 onClick={() => setActiveTab('checkin')}
-                className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+                className={`flex items-center px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-300 text-xs sm:text-sm flex-1 justify-center ${
                   activeTab === 'checkin'
                     ? 'bg-gradient-to-r from-nova-purple to-nova-cyan text-white shadow-lg'
                     : 'text-nova-cyan hover:bg-white/10'
                 }`}
               >
-                <UserPlus className="w-5 h-5 mr-2" />
-                Check In
+                <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Check In</span>
+                <span className="sm:hidden">Check</span>
               </button>
               <button
                 onClick={() => setActiveTab('recent')}
-                className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+                className={`flex items-center px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-300 text-xs sm:text-sm flex-1 justify-center ${
                   activeTab === 'recent'
                     ? 'bg-gradient-to-r from-nova-purple to-nova-cyan text-white shadow-lg'
                     : 'text-nova-cyan hover:bg-white/10'
                 }`}
               >
-                <CheckCircle className="w-5 h-5 mr-2" />
-                Recent Check-ins
+                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Recent Check-ins</span>
+                <span className="sm:hidden">Recent</span>
               </button>
               <button
                 onClick={() => setActiveTab('events')}
-                className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all duration-300 ${
+                className={`flex items-center px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-300 text-xs sm:text-sm flex-1 justify-center ${
                   activeTab === 'events'
                     ? 'bg-gradient-to-r from-nova-purple to-nova-cyan text-white shadow-lg'
                     : 'text-nova-cyan hover:bg-white/10'
                 }`}
               >
-                <Calendar className="w-5 h-5 mr-2" />
-                Events
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Events</span>
+                <span className="sm:hidden">Events</span>
               </button>
             </div>
           </div>
@@ -247,26 +251,26 @@ export default function CheckInPage() {
         {activeTab === 'checkin' && (
           <div className="max-w-2xl mx-auto">
             {/* Check-In Form */}
-            <div className="bg-gradient-to-br from-nova-purple/15 to-nova-purple/5 backdrop-blur-sm rounded-3xl border border-nova-cyan/30 shadow-2xl p-8">
-              <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-                <UserPlus className="w-8 h-8 mr-3 text-nova-cyan" />
+            <div className="bg-gradient-to-br from-nova-purple/15 to-nova-purple/5 backdrop-blur-sm rounded-3xl border border-nova-cyan/30 shadow-2xl p-4 sm:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 flex items-center">
+                <UserPlus className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-nova-cyan" />
                 Athlete Check-In
               </h2>
 
-              <form onSubmit={handleSubmit(onSubmitCheckIn)} className="space-y-6">
+              <form onSubmit={handleSubmit(onSubmitCheckIn)} className="space-y-4 sm:space-y-6">
                 {/* Athlete Search */}
                 <div>
-                  <label className="block text-sm font-medium text-nova-cyan mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-nova-cyan mb-2">
                     Search for Athlete
                   </label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nova-cyan w-5 h-5" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nova-cyan w-4 h-4 sm:w-5 sm:h-5" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Type name to search..."
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-nova-cyan/30 rounded-xl text-white placeholder-white/60 focus:border-nova-cyan focus:ring-2 focus:ring-nova-cyan/20 focus:outline-none backdrop-blur-sm"
+                      className="w-full pl-10 pr-4 py-2 sm:py-3 bg-white/10 border border-nova-cyan/30 rounded-xl text-white placeholder-white/60 focus:border-nova-cyan focus:ring-2 focus:ring-nova-cyan/20 focus:outline-none backdrop-blur-sm text-sm sm:text-base"
                     />
                   </div>
 
