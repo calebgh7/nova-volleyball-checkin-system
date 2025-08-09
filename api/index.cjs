@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { kv } = require('@vercel/kv');
 const path = require('path');
 
 const app = express();
@@ -33,41 +32,39 @@ const defaultUsers = [
   }
 ];
 
-// Database functions
+// Global in-memory storage that persists during function instance lifetime
+let globalUsers = null;
+let globalAthletes = null;
+let globalEvents = null;
+let globalCheckIns = null;
+
+// Database functions with in-memory persistence
 async function getUsers() {
-  try {
-    const users = await kv.get('users');
-    if (users) {
-      console.log('Loaded users from KV:', users.length);
-      return users;
-    }
-  } catch (error) {
-    console.error('Error loading users from KV:', error);
+  // If we have data in memory, use it
+  if (globalUsers) {
+    return globalUsers;
   }
   
+  // Fallback to default users
   console.log('Using default users');
-  return defaultUsers;
+  globalUsers = [...defaultUsers];
+  return globalUsers;
 }
 
 async function saveUsers(users) {
   try {
-    await kv.set('users', users);
-    console.log('Saved users to KV:', users.length);
+    globalUsers = users;
+    console.log('Saved users to memory:', users.length);
     return true;
   } catch (error) {
-    console.error('Error saving users to KV:', error);
+    console.error('Error saving users:', error);
     return false;
   }
 }
 
 async function getAthletes() {
-  try {
-    const athletes = await kv.get('athletes');
-    if (athletes) {
-      return athletes;
-    }
-  } catch (error) {
-    console.error('Error loading athletes from KV:', error);
+  if (globalAthletes) {
+    return globalAthletes;
   }
   
   const defaultAthletes = [
@@ -87,28 +84,23 @@ async function getAthletes() {
     }
   ];
   
-  await saveAthletes(defaultAthletes);
+  globalAthletes = defaultAthletes;
   return defaultAthletes;
 }
 
 async function saveAthletes(athletes) {
   try {
-    await kv.set('athletes', athletes);
+    globalAthletes = athletes;
     return true;
   } catch (error) {
-    console.error('Error saving athletes to KV:', error);
+    console.error('Error saving athletes:', error);
     return false;
   }
 }
 
 async function getEvents() {
-  try {
-    const events = await kv.get('events');
-    if (events) {
-      return events;
-    }
-  } catch (error) {
-    console.error('Error loading events from KV:', error);
+  if (globalEvents) {
+    return globalEvents;
   }
   
   const defaultEvents = [
@@ -128,41 +120,35 @@ async function getEvents() {
     }
   ];
   
-  await saveEvents(defaultEvents);
+  globalEvents = defaultEvents;
   return defaultEvents;
 }
 
 async function saveEvents(events) {
   try {
-    await kv.set('events', events);
+    globalEvents = events;
     return true;
   } catch (error) {
-    console.error('Error saving events to KV:', error);
+    console.error('Error saving events:', error);
     return false;
   }
 }
 
 async function getCheckIns() {
-  try {
-    const checkIns = await kv.get('checkIns');
-    if (checkIns) {
-      return checkIns;
-    }
-  } catch (error) {
-    console.error('Error loading checkIns from KV:', error);
+  if (globalCheckIns) {
+    return globalCheckIns;
   }
   
-  const defaultCheckIns = [];
-  await saveCheckIns(defaultCheckIns);
-  return defaultCheckIns;
+  globalCheckIns = [];
+  return [];
 }
 
 async function saveCheckIns(checkIns) {
   try {
-    await kv.set('checkIns', checkIns);
+    globalCheckIns = checkIns;
     return true;
   } catch (error) {
-    console.error('Error saving checkIns to KV:', error);
+    console.error('Error saving checkIns:', error);
     return false;
   }
 }
@@ -172,7 +158,8 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    message: 'Nova Volleyball Check-in API is running with KV storage!'
+    message: 'Nova Volleyball Check-in API is running with in-memory persistence!',
+    note: 'Data persists during function instance lifetime. For longer persistence, consider using a database service.'
   });
 });
 
@@ -187,7 +174,8 @@ app.get('/api/debug/users', async (req, res) => {
       }),
       userCount: users.length,
       timestamp: new Date().toISOString(),
-      storage: 'Vercel KV'
+      storage: 'In-Memory (Function Instance)',
+      note: 'Data persists during function instance lifetime. Close browser and reopen to test persistence.'
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load users', details: error.message });
@@ -197,7 +185,7 @@ app.get('/api/debug/users', async (req, res) => {
 // Reset users to default (for testing)
 app.post('/api/debug/reset-users', async (req, res) => {
   try {
-    await saveUsers(defaultUsers);
+    globalUsers = [...defaultUsers];
     res.json({ 
       message: 'Users reset to default',
       users: defaultUsers.map(user => {
@@ -214,18 +202,17 @@ app.post('/api/debug/reset-users', async (req, res) => {
 app.post('/api/debug/save-users', async (req, res) => {
   try {
     const currentUsers = await getUsers();
-    const saved = await saveUsers(currentUsers);
     res.json({ 
-      message: saved ? 'Users saved successfully' : 'Failed to save users',
+      message: 'Users saved to memory',
       userCount: currentUsers.length,
-      saved
+      saved: true
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save users', details: error.message });
   }
 });
 
-// Backup and restore system
+// Backup and restore system (in-memory)
 app.post('/api/debug/backup-data', async (req, res) => {
   try {
     const backup = {
@@ -236,10 +223,11 @@ app.post('/api/debug/backup-data', async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
-    await kv.set('backup', backup);
+    // Store backup in memory
+    globalBackup = backup;
     
     res.json({ 
-      message: 'Backup created successfully',
+      message: 'Backup created successfully in memory',
       dataSize: JSON.stringify(backup).length
     });
   } catch (error) {
@@ -249,22 +237,21 @@ app.post('/api/debug/backup-data', async (req, res) => {
 
 app.post('/api/debug/restore-data', async (req, res) => {
   try {
-    const backup = await kv.get('backup');
-    if (backup) {
-      await saveUsers(backup.users);
-      await saveAthletes(backup.athletes);
-      await saveEvents(backup.events);
-      await saveCheckIns(backup.checkIns);
+    if (globalBackup) {
+      globalUsers = globalBackup.users;
+      globalAthletes = globalBackup.athletes;
+      globalEvents = globalBackup.events;
+      globalCheckIns = globalBackup.checkIns;
       
       res.json({ 
-        message: 'Data restored successfully',
-        users: backup.users.length,
-        athletes: backup.athletes.length,
-        events: backup.events.length,
-        checkIns: backup.checkIns.length
+        message: 'Data restored successfully from memory',
+        users: globalBackup.users.length,
+        athletes: globalBackup.athletes.length,
+        events: globalBackup.events.length,
+        checkIns: globalBackup.checkIns.length
       });
     } else {
-      res.status(404).json({ error: 'No backup found' });
+      res.status(404).json({ error: 'No backup found in memory' });
     }
   } catch (error) {
     res.status(500).json({ error: 'Restore failed', details: error.message });
@@ -274,7 +261,7 @@ app.post('/api/debug/restore-data', async (req, res) => {
 // Simple test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ 
-    message: 'API is working correctly with KV storage',
+    message: 'API is working correctly with in-memory persistence',
     endpoints: [
       '/api/health',
       '/api/test',
@@ -282,7 +269,8 @@ app.get('/api/test', (req, res) => {
       '/api/athletes',
       '/api/events',
       '/api/checkins'
-    ]
+    ],
+    note: 'This is a development setup. For production, consider using a database service.'
   });
 });
 
@@ -569,25 +557,24 @@ app.delete('/api/athletes/:id', async (req, res) => {
 });
 
 // Athletes search endpoint
-app.get('/api/athletes/search', (req, res) => {
-  res.json({ 
-    athletes: [
-      {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        phone: '555-1234',
-        dateOfBirth: '2000-01-01',
-        emergencyContact: 'Jane Doe',
-        emergencyContactEmail: 'jane@example.com',
-        emergencyPhone: '555-5678',
-        hasValidWaiver: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]
-  });
+app.get('/api/athletes/search', async (req, res) => {
+  try {
+    const athletes = await getAthletes();
+    const { query } = req.query;
+    
+    if (query) {
+      const filtered = athletes.filter(athlete => 
+        athlete.firstName.toLowerCase().includes(query.toLowerCase()) ||
+        athlete.lastName.toLowerCase().includes(query.toLowerCase()) ||
+        athlete.email.toLowerCase().includes(query.toLowerCase())
+      );
+      res.json({ athletes: filtered });
+    } else {
+      res.json({ athletes });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to search athletes', details: error.message });
+  }
 });
 
 // Events endpoints
