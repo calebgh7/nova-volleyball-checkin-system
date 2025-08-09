@@ -1,31 +1,60 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
-// In-memory storage for users (in a real app, this would be a database)
-let users = [
-  {
-    id: '1',
-    username: 'admin',
-    email: 'admin@nova.com',
-    firstName: 'Admin',
-    lastName: 'User',
-    role: 'admin',
-    password: 'admin123', // In real app, this would be hashed
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: '2',
-    username: 'staff1',
-    email: 'staff1@nova.com',
-    firstName: 'Staff',
-    lastName: 'Member',
-    role: 'staff',
-    password: 'staff123', // In real app, this would be hashed
-    createdAt: new Date().toISOString()
+// File path for persistent user storage
+const usersFilePath = '/tmp/users.json';
+
+// Function to load users from file
+function loadUsers() {
+  try {
+    if (fs.existsSync(usersFilePath)) {
+      const data = fs.readFileSync(usersFilePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error loading users:', error);
   }
-];
+  
+  // Default users if file doesn't exist
+  return [
+    {
+      id: '1',
+      username: 'admin',
+      email: 'admin@nova.com',
+      firstName: 'Admin',
+      lastName: 'User',
+      role: 'admin',
+      password: 'admin123', // In real app, this would be hashed
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: '2',
+      username: 'staff1',
+      email: 'staff1@nova.com',
+      firstName: 'Staff',
+      lastName: 'Member',
+      role: 'staff',
+      password: 'staff123', // In real app, this would be hashed
+      createdAt: new Date().toISOString()
+    }
+  ];
+}
+
+// Function to save users to file
+function saveUsers(users) {
+  try {
+    fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
+  } catch (error) {
+    console.error('Error saving users:', error);
+  }
+}
+
+// Load users from persistent storage
+let users = loadUsers();
 
 // Middleware
 app.use(cors());
@@ -37,6 +66,18 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     message: 'Nova Volleyball Check-in API is running!'
+  });
+});
+
+// Debug endpoint to check current user data
+app.get('/api/debug/users', (req, res) => {
+  res.json({
+    users: users.map(user => {
+      const { password, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    }),
+    fileExists: fs.existsSync(usersFilePath),
+    filePath: usersFilePath
   });
 });
 
@@ -128,6 +169,9 @@ app.post('/api/auth/register', (req, res) => {
   };
 
   users.push(newUser);
+  
+  // Save to persistent storage
+  saveUsers(users);
 
   // Return user without password
   const { password: _, ...userWithoutPassword } = newUser;
@@ -175,6 +219,9 @@ app.put('/api/auth/users/:id', (req, res) => {
     ...(password && { password }) // Only update password if provided
   };
 
+  // Save to persistent storage
+  saveUsers(users);
+
   // Return updated user without password
   const { password: _, ...userWithoutPassword } = users[userIndex];
   
@@ -197,6 +244,9 @@ app.delete('/api/auth/users/:id', (req, res) => {
 
   // Remove user from array
   users.splice(userIndex, 1);
+  
+  // Save to persistent storage
+  saveUsers(users);
   
   res.json({ message: 'User deleted successfully' });
 });
