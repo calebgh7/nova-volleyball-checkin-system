@@ -443,7 +443,23 @@ app.get('/api/events', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ events: events || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvents = (events || []).map(event => ({
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    }));
+    
+    res.json({ events: transformedEvents });
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Failed to load events', details: error.message });
@@ -472,7 +488,23 @@ app.post('/api/events', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ message: 'Event created successfully', event });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvent = {
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    };
+    
+    res.json({ message: 'Event created successfully', event: transformedEvent });
   } catch (error) {
     console.error('Error creating event:', error);
     res.status(500).json({ error: 'Failed to create event', details: error.message });
@@ -505,7 +537,23 @@ app.put('/api/events/:id', async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    res.json({ message: 'Event updated successfully', event });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvent = {
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    };
+
+    res.json({ message: 'Event updated successfully', event: transformedEvent });
   } catch (error) {
     console.error('Error updating event:', error);
     res.status(500).json({ error: 'Failed to update event', details: error.message });
@@ -704,7 +752,23 @@ app.get('/api/events/today', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ events: events || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvents = (events || []).map(event => ({
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    }));
+    
+    res.json({ events: transformedEvents });
   } catch (error) {
     console.error('Error fetching today\'s events:', error);
     res.status(500).json({ error: 'Failed to load today\'s events', details: error.message });
@@ -723,7 +787,23 @@ app.get('/api/events/past', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ events: events || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvents = (events || []).map(event => ({
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    }));
+    
+    res.json({ events: transformedEvents });
   } catch (error) {
     console.error('Error fetching past events:', error);
     res.status(500).json({ error: 'Failed to load past events', details: error.message });
@@ -740,7 +820,23 @@ app.get('/api/events/disabled', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ events: events || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedEvents = (events || []).map(event => ({
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      maxCapacity: event.max_capacity,
+      currentCapacity: event.current_capacity,
+      isActive: event.is_active,
+      createdBy: event.created_by,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at
+    }));
+    
+    res.json({ events: transformedEvents });
   } catch (error) {
     console.error('Error fetching disabled events:', error);
     res.status(500).json({ error: 'Failed to load disabled events', details: error.message });
