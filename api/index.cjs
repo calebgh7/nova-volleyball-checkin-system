@@ -43,46 +43,53 @@ function getUsers() {
     return globalUsers;
   }
 
-  // Try to load from file
-  try {
-    if (fs.existsSync('/tmp/users.json')) {
-      const data = fs.readFileSync('/tmp/users.json', 'utf8');
-      const parsed = JSON.parse(data);
-      console.log('Loaded users from file:', parsed.length);
-      globalUsers = parsed;
-      return parsed;
-    }
-  } catch (error) {
-    console.error('Error loading users from file:', error);
-  }
-
-  // Try alternative file locations
-  const alternativePaths = [
+  // Try to load from file with more robust error handling
+  const paths = [
+    '/tmp/users.json',
     '/tmp/nova_users.json',
     '/var/tmp/users.json',
-    './users.json'
+    './users.json',
+    '/tmp/nova_data/users.json'
   ];
 
-  for (const path of alternativePaths) {
+  for (const path of paths) {
     try {
       if (fs.existsSync(path)) {
         const data = fs.readFileSync(path, 'utf8');
         const parsed = JSON.parse(data);
-        console.log('Loaded users from alternative path:', path, parsed.length);
+        console.log('Loaded users from path:', path, parsed.length);
         globalUsers = parsed;
         return parsed;
       }
     } catch (error) {
-      console.error('Error loading users from alternative path:', path, error);
+      console.error('Error loading users from path:', path, error);
     }
+  }
+
+  // Try to create directory and save default users
+  try {
+    fs.mkdirSync('/tmp/nova_data', { recursive: true });
+    console.log('Created nova_data directory');
+  } catch (error) {
+    console.error('Error creating directory:', error);
   }
 
   console.log('Using default users');
   globalUsers = JSON.parse(JSON.stringify(defaultUsers)); // Deep copy
+  
+  // Try to save default users to persistent location
+  try {
+    const data = JSON.stringify(globalUsers, null, 2);
+    fs.writeFileSync('/tmp/nova_data/users.json', data);
+    console.log('Saved default users to persistent location');
+  } catch (error) {
+    console.error('Error saving default users:', error);
+  }
+  
   return globalUsers;
 }
 
-// Function to save users to multiple locations
+// Function to save users to multiple locations with better persistence
 function saveUsers(users) {
   globalUsers = users; // Update global cache
   
@@ -90,12 +97,19 @@ function saveUsers(users) {
     '/tmp/users.json',
     '/tmp/nova_users.json',
     '/var/tmp/users.json',
-    './users.json'
+    './users.json',
+    '/tmp/nova_data/users.json'
   ];
 
   let saved = false;
   for (const path of paths) {
     try {
+      // Ensure directory exists
+      const dir = path.substring(0, path.lastIndexOf('/'));
+      if (dir) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
       const data = JSON.stringify(users, null, 2);
       fs.writeFileSync(path, data);
       console.log('Saved users to:', path, users.length);
@@ -164,16 +178,38 @@ app.get('/api/health', (req, res) => {
 // Debug endpoint to check current user data
 app.get('/api/debug/users', (req, res) => {
   const currentUsers = getUsers();
+  
+  // Check all possible file locations
+  const fileLocations = [
+    '/tmp/users.json',
+    '/tmp/nova_users.json',
+    '/var/tmp/users.json',
+    './users.json',
+    '/tmp/nova_data/users.json'
+  ];
+  
+  const fileStatus = {};
+  fileLocations.forEach(path => {
+    try {
+      fileStatus[path] = {
+        exists: fs.existsSync(path),
+        size: fs.existsSync(path) ? fs.statSync(path).size : 0
+      };
+    } catch (error) {
+      fileStatus[path] = { exists: false, error: error.message };
+    }
+  });
+  
   res.json({
     users: currentUsers.map(user => {
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     }),
-    fileExists: fs.existsSync('/tmp/users.json'),
-    filePath: '/tmp/users.json',
+    fileStatus,
     userCount: currentUsers.length,
     globalUsersCached: globalUsers !== null,
-    globalUsersCount: globalUsers ? globalUsers.length : 0
+    globalUsersCount: globalUsers ? globalUsers.length : 0,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -192,12 +228,68 @@ app.post('/api/debug/reset-users', (req, res) => {
 
 // Force save users (for testing)
 app.post('/api/debug/save-users', (req, res) => {
-  const saved = saveUsers(users);
+  const currentUsers = getUsers();
+  const saved = saveUsers(currentUsers);
   res.json({ 
     message: saved ? 'Users saved successfully' : 'Failed to save users',
-    userCount: users.length,
+    userCount: currentUsers.length,
     saved
   });
+});
+
+// Backup and restore system
+app.post('/api/debug/backup-data', (req, res) => {
+  try {
+    const backup = {
+      users: getUsers(),
+      athletes: athletes,
+      events: events,
+      checkIns: checkIns,
+      timestamp: new Date().toISOString()
+    };
+    
+    const backupPath = '/tmp/nova_data/backup.json';
+    fs.mkdirSync('/tmp/nova_data', { recursive: true });
+    fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+    
+    res.json({ 
+      message: 'Backup created successfully',
+      backupPath,
+      dataSize: JSON.stringify(backup).length
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Backup failed', details: error.message });
+  }
+});
+
+app.post('/api/debug/restore-data', (req, res) => {
+  try {
+    const backupPath = '/tmp/nova_data/backup.json';
+    if (fs.existsSync(backupPath)) {
+      const data = fs.readFileSync(backupPath, 'utf8');
+      const backup = JSON.parse(data);
+      
+      globalUsers = backup.users;
+      athletes = backup.athletes || athletes;
+      events = backup.events || events;
+      checkIns = backup.checkIns || checkIns;
+      
+      // Save to all locations
+      saveUsers(globalUsers);
+      
+      res.json({ 
+        message: 'Data restored successfully',
+        users: globalUsers.length,
+        athletes: athletes.length,
+        events: events.length,
+        checkIns: checkIns.length
+      });
+    } else {
+      res.status(404).json({ error: 'No backup found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Restore failed', details: error.message });
+  }
 });
 
 // Simple test endpoint
