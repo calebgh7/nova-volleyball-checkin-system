@@ -278,7 +278,23 @@ app.get('/api/athletes', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ athletes: athletes || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedAthletes = (athletes || []).map(athlete => ({
+      id: athlete.id,
+      firstName: athlete.first_name,
+      lastName: athlete.last_name,
+      email: athlete.email,
+      phone: athlete.phone,
+      dateOfBirth: athlete.date_of_birth,
+      emergencyContact: athlete.emergency_contact,
+      emergencyContactEmail: athlete.emergency_contact_email,
+      emergencyPhone: athlete.emergency_phone,
+      hasValidWaiver: athlete.has_valid_waiver,
+      createdAt: athlete.created_at,
+      updatedAt: athlete.updated_at
+    }));
+    
+    res.json({ athletes: transformedAthletes });
   } catch (error) {
     console.error('Error fetching athletes:', error);
     res.status(500).json({ error: 'Failed to load athletes', details: error.message });
@@ -307,7 +323,23 @@ app.post('/api/athletes', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ message: 'Athlete created successfully', athlete });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedAthlete = {
+      id: athlete.id,
+      firstName: athlete.first_name,
+      lastName: athlete.last_name,
+      email: athlete.email,
+      phone: athlete.phone,
+      dateOfBirth: athlete.date_of_birth,
+      emergencyContact: athlete.emergency_contact,
+      emergencyContactEmail: athlete.emergency_contact_email,
+      emergencyPhone: athlete.emergency_phone,
+      hasValidWaiver: athlete.has_valid_waiver,
+      createdAt: athlete.created_at,
+      updatedAt: athlete.updated_at
+    };
+    
+    res.json({ message: 'Athlete created successfully', athlete: transformedAthlete });
   } catch (error) {
     console.error('Error creating athlete:', error);
     res.status(500).json({ error: 'Failed to create athlete', details: error.message });
@@ -342,7 +374,23 @@ app.put('/api/athletes/:id', async (req, res) => {
       return res.status(404).json({ error: 'Athlete not found' });
     }
 
-    res.json({ message: 'Athlete updated successfully', athlete });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedAthlete = {
+      id: athlete.id,
+      firstName: athlete.first_name,
+      lastName: athlete.last_name,
+      email: athlete.email,
+      phone: athlete.phone,
+      dateOfBirth: athlete.date_of_birth,
+      emergencyContact: athlete.emergency_contact,
+      emergencyContactEmail: athlete.emergency_contact_email,
+      emergencyPhone: athlete.emergency_phone,
+      hasValidWaiver: athlete.has_valid_waiver,
+      createdAt: athlete.created_at,
+      updatedAt: athlete.updated_at
+    };
+
+    res.json({ message: 'Athlete updated successfully', athlete: transformedAthlete });
   } catch (error) {
     console.error('Error updating athlete:', error);
     res.status(500).json({ error: 'Failed to update athlete', details: error.message });
@@ -748,7 +796,23 @@ app.get('/api/athletes/search', async (req, res) => {
 
     if (error) throw error;
     
-    res.json({ athletes: athletes || [] });
+    // Transform the data to match frontend expectations (camelCase)
+    const transformedAthletes = (athletes || []).map(athlete => ({
+      id: athlete.id,
+      firstName: athlete.first_name,
+      lastName: athlete.last_name,
+      email: athlete.email,
+      phone: athlete.phone,
+      dateOfBirth: athlete.date_of_birth,
+      emergencyContact: athlete.emergency_contact,
+      emergencyContactEmail: athlete.emergency_contact_email,
+      emergencyPhone: athlete.emergency_phone,
+      hasValidWaiver: athlete.has_valid_waiver,
+      createdAt: athlete.created_at,
+      updatedAt: athlete.updated_at
+    }));
+    
+    res.json({ athletes: transformedAthletes });
   } catch (error) {
     console.error('Error searching athletes:', error);
     res.status(500).json({ error: 'Failed to search athletes', details: error.message });
