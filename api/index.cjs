@@ -749,11 +749,16 @@ app.get('/api/events/today', async (req, res) => {
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone 
     }); // HH:MM:SS format in local timezone
     
-    // Get all events for today
+    // Calculate yesterday's date
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = yesterday.toLocaleDateString('en-CA');
+    
+    // Get all events for today and yesterday
     const { data: events, error } = await supabase
       .from('events')
       .select('*')
-      .eq('date', localDate)
+      .in('date', [localDate, yesterdayDate])
       .eq('is_active', true)
       .order('start_time', { ascending: true });
 
@@ -806,13 +811,24 @@ app.get('/api/events/past', async (req, res) => {
 
     if (error) throw error;
     
-    // Filter events that are truly in the past (date < localDate OR date = localDate AND end_time < localTime)
+    // Filter events that are truly in the past
+    // An event is past if: (date < today) OR (date = today AND end_time < current_time) OR (date = yesterday AND end_time < current_time)
     const pastEvents = (events || []).filter(event => {
       const eventDate = event.date;
       const eventEndTime = event.end_time;
       
-      // If event date is before today, it's definitely past
-      if (eventDate < localDate) {
+      // Calculate yesterday's date
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayDate = yesterday.toLocaleDateString('en-CA');
+      
+      // If event date is before yesterday, it's definitely past
+      if (eventDate < yesterdayDate) {
+        return true;
+      }
+      
+      // If event date is yesterday, check if the end time has passed
+      if (eventDate === yesterdayDate && eventEndTime < localTime) {
         return true;
       }
       
